@@ -7,5 +7,4 @@ python {
     pip 'luaparser:1.2.1'
     pip 'setuptools:39.0.1 '
     pip 'kaistruct:0.9-SNAPSHOT'
-    pip 'enum34'
 }

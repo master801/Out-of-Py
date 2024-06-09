@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import struct
 
+from luaparser import ast, asttokens
+
 from src import mahouka_json, constants
 
 
@@ -25,7 +27,7 @@ def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
 
     write_encoded(deserialized_file_path, output_dir_path, _type, encoded_file_data)
 
-    print('Wrote deserialized file \"{0}\" to \"{1}\"'.format(input_file_path, output_dir_path + '/' + deserialized_file_path))
+    print('Wrote deserialized file \"{0}\" to \"{1}\"\n'.format(input_file_path, output_dir_path + '/' + deserialized_file_path))
 
 
 def encode_file_data(_type, deserialized):
@@ -48,6 +50,48 @@ def encode_file_data(_type, deserialized):
 
 
 def encode_lua(deserialized):
+    LUA_BLOCK = "block = {\nname = '',\ntxt = '',\nvoice = ''\n}"
+
+    blocks = []
+    for deserialized_block_key in deserialized:
+        deserialized_block = deserialized[deserialized_block_key]
+
+        name = deserialized_block['0']['name']
+        txt = deserialized_block['1']['txt']
+        voice = deserialized_block['2']['voice']
+
+        lua_tokens = asttokens.parse(LUA_BLOCK)
+
+        for token in lua_tokens.types(asttokens.Tokens.NAME):
+            if token.text == 'block':
+                token.text = deserialized_block_key
+            elif token.text == 'name':
+                name_value = token.next().next()
+                name_value.text = '\'{0}\''.format(name)
+            elif token.text == 'txt':
+                txt_value = token.next().next()
+
+                text_to_insert = '\'' + txt[0]
+                if len(txt) > 1:
+                    for txt_index in range(len(txt)):
+                        print()
+                        continue
+
+                    print()
+
+                text_to_insert += '\''
+
+                print()
+            elif token.text == 'voice':
+                voice_value = token.next().next()
+                voice_value = '\'{0}\''.format(voice)
+            continue
+
+        print(lua_tokens.toSource())
+
+        print()
+        continue
+
     print()  # TODO
     return None
 
