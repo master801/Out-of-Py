@@ -66,29 +66,28 @@ def parse_lua(lua_file):
                     value = value_list[index]
 
                     if isinstance(value, astnodes.Concat):
-                        concants = []
+                        values = []
 
                         tmp = value
                         while isinstance(tmp, astnodes.Concat):
-                            concants.insert(0, tmp)  # Insert at the top of the stack
+                            if isinstance(tmp.left, astnodes.String):
+                                values.append(tmp.left.s)
+                            values.append(tmp.right.s)
+
                             tmp = tmp.left
                             continue
 
                         value = []
-                        last_index = -1
-                        for concant_index in range(len(concants) - 1):  # Iterate over all concants besides the last
-                            concant = concants[concant_index]
 
-                            if last_index == -1 or last_index == concant_index + 1:
-                                last_index = concant_index + 1
-
-                            value.insert(concant_index, concant.left.s)
-                            value.insert(last_index, concant.right.s)
-                            continue
-
-                        if len(concants) > 0:
-                            # Insert the 'right' concant last
-                            value.insert(last_index + 1, concants[len(concants) - 1].right.s)
+                        if len(values) == 2:
+                            value.append(values[0])
+                            value.append(values[1])
+                        elif len(values) == 3:
+                            value.append(values[1])
+                            value.append(values[2])
+                            value.append(values[0])
+                        else:
+                            print()
                     else:
                         value = value.s
 

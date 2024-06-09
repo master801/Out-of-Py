@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import struct
 
-from luaparser import ast, asttokens
-
 from src import mahouka_json, constants
+from src.builders import builders
 
 
 def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path):
@@ -50,50 +49,33 @@ def encode_file_data(_type, deserialized):
 
 
 def encode_lua(deserialized):
-    LUA_BLOCK = "block = {\nname = '',\ntxt = '',\nvoice = ''\n}"
-
     blocks = []
     for deserialized_block_key in deserialized:
         deserialized_block = deserialized[deserialized_block_key]
 
-        name = deserialized_block['0']['name']
-        txt = deserialized_block['1']['txt']
-        voice = deserialized_block['2']['voice']
+        name = None
+        txt_list = None
+        voice = None
 
-        lua_tokens = asttokens.parse(LUA_BLOCK)
+        if len(deserialized_block) > 0:
+            name = deserialized_block['0']['name']
+            txt_list = deserialized_block['1']['txt']
+            voice = deserialized_block['2']['voice']
 
-        for token in lua_tokens.types(asttokens.Tokens.NAME):
-            if token.text == 'block':
-                token.text = deserialized_block_key
-            elif token.text == 'name':
-                name_value = token.next().next()
-                name_value.text = '\'{0}\''.format(name)
-            elif token.text == 'txt':
-                txt_value = token.next().next()
+        builder = builders.BlockBuilder(deserialized_block_key, name, txt_list, voice)
+        line = builder.to_source()
 
-                text_to_insert = '\'' + txt[0]
-                if len(txt) > 1:
-                    for txt_index in range(len(txt)):
-                        print()
-                        continue
-
-                    print()
-
-                text_to_insert += '\''
-
-                print()
-            elif token.text == 'voice':
-                voice_value = token.next().next()
-                voice_value = '\'{0}\''.format(voice)
-            continue
-
-        print(lua_tokens.toSource())
-
-        print()
+        blocks.append(line)
         continue
 
-    print()  # TODO
-    return None
+    data = bytearray()
+
+    for block in blocks:
+        encoded_bytes = block.encode('utf-8')
+        data[len(data):len(encoded_bytes)] = encoded_bytes
+        continue
+
+    return data
 
 
 def encode_bin_char_battle_param(deserialized):
@@ -153,15 +135,15 @@ def encode_bin_cad_param(deserialized):
         param_data_block[0x104:0x108] = struct.pack('<L', sub_index)
         param_data_block[0x108:0x10C] = struct.pack('<L', unknown_1)
         param_data_block[0x10C:0x110] = struct.pack('>L', unknown_2)
-        param_data_block[0x114:0x118] = struct.pack('>L', unknown_3)
-        param_data_block[0x11C:0x120] = struct.pack('>L', unknown_4)
-        param_data_block[0x124:0x128] = struct.pack('>L', unknown_5)
-        param_data_block[0x13C:0x140] = struct.pack('>L', unknown_6)
-        param_data_block[0x144:0x148] = struct.pack('>L', unknown_7)
-        param_data_block[0x144:0x148] = struct.pack('>L', unknown_8)
-        param_data_block[0x144:0x148] = struct.pack('>L', unknown_9)
-        param_data_block[0x144:0x148] = struct.pack('>L', unknown_10)
-        # unknown_11 is 0x00 padding
+        param_data_block[0x110:0x114] = struct.pack('>L', unknown_3)
+        param_data_block[0x114:0x118] = struct.pack('>L', unknown_4)
+        param_data_block[0x118:0x11C] = struct.pack('>L', unknown_5)
+        param_data_block[0x11C:0x120] = struct.pack('>L', unknown_6)
+        param_data_block[0x120:0x124] = struct.pack('>L', unknown_7)
+        param_data_block[0x124:0x128] = struct.pack('>L', unknown_8)
+        param_data_block[0x128:0x12C] = struct.pack('>L', unknown_9)
+        param_data_block[0x12C:0x130] = struct.pack('>L', unknown_10)
+        # 0x130-0x160 contains only 0x00 padding
         param_data_block[0x160:0x164] = struct.pack('<L', unknown_12)
 
         data_block[param_index * constants.LENGTH_BIN_CAD_PARAM_CHUNK: (param_index + 1) * constants.LENGTH_BIN_CAD_PARAM_CHUNK] = param_data_block
@@ -186,7 +168,10 @@ def encode_bin_magic_text(deserialized):
         entry_data[0x04:0x08] = struct.pack('<L', id_2)
         entry_data[0x08:0x208] = text.encode('utf-8').ljust(0x200, b'\x00')
 
-        data_block[0x208 * entry_index:0x208 * (entry_index + 1)] = entry_data
+        start_offset = constants.LENGTH_BIN_MAGIC_TEXT_CHUNK * entry_index
+        end_offset = constants.LENGTH_BIN_MAGIC_TEXT_CHUNK * (entry_index + 1)
+
+        data_block[start_offset:end_offset] = entry_data
         continue
     return data_block
 
@@ -231,9 +216,9 @@ def encode_bin_tutorial_list(deserialized):
         entry_data_block[0x20:0xA0] = title_data.ljust(0x80, b'\x00')
         entry_data_block[0xA0:0x00] = text_data.ljust(0x200, b'\x00')
 
-        previous_index = 0x04 + (0x29C * entry_index)
-        next_index = 0x04 + (0x29C * (entry_index + 1))
-        data_block[previous_index:next_index] = entry_data_block
+        start_offset = 0x04 + (constants.LENGTH_BIN_TUTORIAL_LIST_CHUNK * entry_index)
+        end_offset = 0x04 + (constants.LENGTH_BIN_TUTORIAL_LIST_CHUNK * (entry_index + 1))
+        data_block[start_offset:end_offset] = entry_data_block
         continue
     return data_block
 

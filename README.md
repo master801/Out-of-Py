@@ -22,9 +22,16 @@ python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR
 
 ### Currently Supports:
 
-- [x] IMH_Tuning_List_X_XX.bin
-- [x] MagicText.bin
-- [x] CadParam.bin
-- [x] CadTextParam.bin
-- [ ] CharMenuParam.bin
-- [x] TutorialList.bin
+- [x] Graph2D/TuneData/IMH_Tuning_List_X_XX.bin
+- [x] Graph2D/Tutorial/TutorialList.bin
+- [x] Param/Atk/CadParam.bin
+- [x] Param/Atk/CadTextParam.bin
+- [ ] Param/Atk/CharMenuParam.bin
+- [ ] Param/Atk/MagicParam.bin
+- [x] Param/Atk/MagicText.bin
+
+
+## Info
+
+Please give credit where it's due if using my tool.</br>
+I've put too much work and effort into this only to be discredited. I don't want to end up keeping these tools for private use only, and would rather share them publicly.
