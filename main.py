@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
+
 import argparse
 import glob
 import os
 import decode
+import encode
 
 
 # Constants
@@ -65,9 +68,11 @@ def __main__():
         json_files = files
 
         for json_file_path in json_files:
+            something = something_to_do_with_files(_input, _output, json_file_path)
 
+            # Encode file
+            encode.encode_file(something[0], something[1], something[2], _output)
             continue
-        return
 
 
 # Returns the input file's path, name
@@ -80,13 +85,13 @@ def something_to_do_with_files(_input, _output, input_file_path):
     if file_name is None:
         raise file_name.UnknownError('Failed to get index of the file\'s name? This is not supposed to happen! Please inform the developer(s) about this error!')
 
-    #Get only the path of the input file's directory
+    # Get only the path of the input file's directory
     index2 = input_file_path.find(file_name) - 1
     input_dir_path = input_file_path[:index2]
     input_dir_path = input_dir_path[(len(_input) + 1):]
 
     return [
-        input_dir_path,
+        input_dir_path.replace('\\', '/'),
         input_file_path[:index1],
         file_name
     ]

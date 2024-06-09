@@ -1,12 +1,17 @@
+#!/usr/bin/env python3
+
 import os
 import struct
 
 from luaparser import ast
 from luaparser import astnodes
-import json_out
+
+import constants
+import mahouka_json
 
 
-def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path):  # Do not have output file as a file - No need to create a file if we're not using it yet
+# Do not have output file as a file - No need to create a file if we're not using it yet
+def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path):
     input_file_path = full_input_dir_path + '\\' + input_file_name
     ext = input_file_name[-4:].lower()
     if ext == '.lua':
@@ -17,14 +22,14 @@ def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
 
         lua_input_file = open(input_file_path, 'rt', encoding='UTF-8')  # Open file as text for reading
         block = parse_lua(lua_input_file)
-        serialized_lua_json = json_out.serialize_lua(input_file_name, block)
+        serialized_lua_json = mahouka_json.serialize_lua(input_dir_path, input_file_name, block)
         write_json(serialized_lua_json, input_file_name, output_dir_path)
     elif ext == '.bin':
         bin_input_file = open(input_file_path, 'rb')
         parsed_bin_blob = parse_bin(bin_input_file)
         _type = parsed_bin_blob[0]
         parsed_bin = parsed_bin_blob[1]
-        serialized_bin_json = json_out.serialize_bin(input_file_name, _type, parsed_bin)
+        serialized_bin_json = mahouka_json.serialize_bin(input_dir_path, input_file_name, _type, parsed_bin)
         if _type == 'Param' or _type == 'Text' or _type == 'List' or _type == 'Page' or _type == 'TextParam':  # TODO
             write_json(serialized_bin_json, input_file_name, output_dir_path) # TODO
 
@@ -76,7 +81,8 @@ def parse_lua(lua_file):
                             continue
 
                         if len(concants) > 0:
-                            value.insert(last_index + 1, concants[len(concants) - 1].right.s)  # Insert the 'right' concant last
+                            # Insert the 'right' concant last
+                            value.insert(last_index + 1, concants[len(concants) - 1].right.s)
                     else:
                         value = value.s
 
@@ -89,10 +95,10 @@ def parse_lua(lua_file):
                     #     decoded_string = decode_string_bullshit(value)
                     #     value = decoded_string
 
-                    sub_blocks[index] = { key:value }  # Add our mapped value
+                    sub_blocks[index] = {key: value}  # Add our mapped value
                     continue
 
-                block.update({key_name:sub_blocks})
+                block.update({key_name: sub_blocks})
                 continue
             continue
         continue
@@ -128,11 +134,9 @@ def parse_bin(bin_file):
 
     bin_file_name = bin_file_path[:-4]
 
-    types = ['BattleParam', 'MenuParam', 'TextParam', 'Param', 'Text', 'List', 'Page']
-
     _type = None
     parsed_bin = None
-    for iterating_type in types:
+    for iterating_type in constants.TYPES_BIN:
         if bin_file_name.endswith(iterating_type):
             _type = iterating_type
             print('Detected type \"{0}\" for bin file {1}'.format(_type, bin_file.name))
@@ -141,21 +145,21 @@ def parse_bin(bin_file):
 
     if _type is None:
         print('Unknown type for bin file {0} - Defaulting to \"{1}\"'.format(bin_file.name, _type))
-        _type = types[len(types) - 1]
+        _type = constants.TYPES_BIN[len(constants.TYPES_BIN) - 1]
 
-    if _type == 'BattleParam':  # CharBattleParam.bin
+    if _type == constants.TYPE_BIN_BATTLE_PARAM:  # CharBattleParam.bin
         parsed_bin = parse_bin_battle_param(bin_file)  # TODO
-    elif _type == 'MenuParam':  # CharMenuParam.bin
+    elif _type == constants.TYPE_BIN_MENU_PARAM:  # CharMenuParam.bin
         parsed_bin = parse_bin_menu_param(bin_file)  # TODO
-    elif _type == 'TextParam':  # CadTextParam.bin
+    elif _type == constants.TYPE_BIN_TEXT_PARAM:  # CadTextParam.bin
         parsed_bin = parse_bin_text_param(bin_file)
-    elif _type == 'Param':  # CadParam.bin
+    elif _type == constants.TYPE_BIN_PARAM:  # CadParam.bin
         parsed_bin = parse_bin_param(bin_file)
-    elif _type == 'Text':  # MagicText.bin
+    elif _type == constants.TYPE_BIN_TEXT:  # MagicText.bin
         parsed_bin = parse_bin_text(bin_file)
-    elif _type == 'List':  # TutorialList.bin
+    elif _type == constants.TYPE_BIN_LIST:  # TutorialList.bin
         parsed_bin = parse_bin_list(bin_file)
-    elif _type == 'Page':
+    elif _type == constants.TYPE_BIN_PAGE:
         parsed_bin = parse_bin_page(bin_file)
     elif _type is None:
         print('Unknown bin type!')
