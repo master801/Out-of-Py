@@ -20,33 +20,64 @@ def find_files(mode, dir):
         for root, subdirs, files in os.walk(dir):
             if len(files) < 1:  # Skip dirs with no files
                 continue
-            for lua_txt in glob.iglob(root + '\\' + '*_Txt.lua'):
+            for lua_txt in glob.iglob(root + constants.FILE_PATH_SEPARATOR + '*_Txt.lua'):
                 lua_files.append(lua_txt)
-            for _bin in glob.iglob(root + '\\' + '*.bin'):
+                continue
+            for _bin in glob.iglob(root + constants.FILE_PATH_SEPARATOR + '*.bin'):
                 bin_files.append(_bin)
+                continue
         return [lua_files, bin_files]
     elif mode == constants.MODE_ENCODE:
         json_files = []
         for root, subdirs, files in os.walk(dir):
             if len(files) < 1:  # Skip dirs with no files
                 continue
-        for _bin in glob.iglob(root + '\\' + '*.json'):
+            continue
+        for _bin in glob.iglob(root + constants.FILE_PATH_SEPARATOR + '*.json'):
             json_files.append(_bin)
+            continue
         return json_files
+
+
+# Returns the input file's path, name
+def something_to_do_with_files(_input, _output, input_file_path):
+    file_name = None
+
+    index1 = input_file_path.rfind(constants.FILE_PATH_SEPARATOR)
+    if index1 != -1:
+        file_name = input_file_path[(index1 + 1):]
+        pass
+
+    if file_name is None:
+        raise file_name.UnknownError('Failed to get index of the file\'s name? This is not supposed to happen! Please inform the developer(s) about this error!')
+        pass
+
+    # Get only the path of the input file's directory
+    index2 = input_file_path.find(file_name) - 1
+    input_dir_path = input_file_path[:index2]
+    input_dir_path = input_dir_path[(len(_input) + 1):]
+
+    return [
+        input_dir_path.replace('\\', '/'),
+        input_file_path[:index1],
+        file_name
+    ]
 
 
 def __main__():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', dest='input_dir', required=True, nargs=1, type=str, help='Input directory')
     parser.add_argument('--output', dest='output_dir', required=True, nargs=1, type=str, help='Output directory')
-    parser.add_argument('--mode', dest='mode', required=True, nargs=1, choices=['DECODE', 'ENCODE'], type=str, help='Mode')
-    parser.add_argument('--threads', dest='threads', required=False, nargs=1, type=int, default=2, help='Max threads to use. Default is 2')
+    parser.add_argument('--mode', dest='mode', required=True, nargs=1, type=str, choices=['DECODE', 'ENCODE'], help='Mode')
+    parser.add_argument('--threads', dest='threads', required=False, nargs=1, type=int, default=1, help='Max threads to use. Default is 1')
+    parser.add_argument('--overwrite', dest='overwrite', required=False, nargs=1, type=bool, choices=[False, True], default=False)
     args = parser.parse_args()
 
     mode = args.mode[0].upper()
     _input = args.input_dir[0]
     _output = args.output_dir[0]
-    threads = args.threads
+    overwrite = args.overwrite
+    threads = args.threads[0]
 
     files = find_files(mode, _input)  # Find files in given input dir
 
@@ -59,43 +90,65 @@ def __main__():
         for lua_file_path in lua_files:
             something = something_to_do_with_files(_input, _output, lua_file_path)
 
-            if os.path.isfile(_output + '\\' + something[2] + '.json'):
-                if __debug__:  # Skip if not in dev workspace
-                    print('Found already decoded json file... not decoding {0}...'.format(something[1] + '\\' + something[2]))
+            if os.path.isfile(_output + constants.FILE_PATH_SEPARATOR + something[2] + '.json'):
+                if not overwrite:
+                    print('Found already decoded json file... not decoding file \"{0}/{1}\"'.format(something[1], something[2]))
                     continue
+                pass
+            pass
 
             # Decode lua
-            process = multiprocessing.Process(target=decode.decode_file, args=(something[0], something[1], something[2], _output))
-            jobs.append(process)
+            if threads < 2:
+                decode.decode_file(something[0], something[1], something[2], _output, overwrite)
+                pass
+            else:
+                process = multiprocessing.Process(target=decode.decode_file, args=(something[0], something[1], something[2], _output, overwrite))
+                jobs.append(process)
+                pass
             continue
 
         for bin_file_path in bin_files:
             something = something_to_do_with_files(_input, _output, bin_file_path)
 
-            if os.path.isfile(_output + '\\' + something[2] + '.json'):
-                if __debug__:  # Skip if not in dev workspace
-                    print('Found already decoded json file... not decoding {0}...'.format(something[1] + '\\' + something[2]))
+            if os.path.isfile(_output + constants.FILE_PATH_SEPARATOR + something[2] + '.json'):
+                if not overwrite:
+                    print('Found already decoded json file... not decoding file \"{0}/{1}\"'.format(something[1], something[2]))
                     continue
+                pass
+            pass
 
             # Decode bin
-            process = multiprocessing.Process(target=decode.decode_file, args=(something[0], something[1], something[2], _output))
-            jobs.append(process)
+            if threads < 2:
+                decode.decode_file(something[0], something[1], something[2], _output, overwrite)
+                pass
+            else:
+                process = multiprocessing.Process(target=decode.decode_file, args=(something[0], something[1], something[2], _output, overwrite))
+                jobs.append(process)
+                pass
             continue
-
         pass
-
     elif mode == constants.MODE_ENCODE:
         json_files = files
-
         for json_file_path in json_files:
             something = something_to_do_with_files(_input, _output, json_file_path)
 
             # Encode file
-            process = multiprocessing.Process(target=encode.encode_file, args=(something[0], something[1], something[2], _output))
-            jobs.append(process)
+            if threads < 2:
+                encode.encode_file(something[0], something[1], something[2], _output, overwrite)
+                pass
+            else:
+                process = multiprocessing.Process(target=encode.encode_file, args=(something[0], something[1], something[2], _output, overwrite))
+                jobs.append(process)
+                pass
             continue
-
         pass
+    else:
+        print('No mode specified!')
+        return
+
+    if len(jobs) < 1:
+        print('Done!')
+        return
 
     processed_jobs = []
     for job_index in range(len(jobs)):
@@ -116,28 +169,7 @@ def __main__():
         continue
 
     jobs.clear()
-
-
-# Returns the input file's path, name
-def something_to_do_with_files(_input, _output, input_file_path):
-    file_name = None
-
-    index1 = input_file_path.rfind('\\')
-    if index1 != -1:
-        file_name = input_file_path[(index1 + 1):]
-    if file_name is None:
-        raise file_name.UnknownError('Failed to get index of the file\'s name? This is not supposed to happen! Please inform the developer(s) about this error!')
-
-    # Get only the path of the input file's directory
-    index2 = input_file_path.find(file_name) - 1
-    input_dir_path = input_file_path[:index2]
-    input_dir_path = input_dir_path[(len(_input) + 1):]
-
-    return [
-        input_dir_path.replace('\\', '/'),
-        input_file_path[:index1],
-        file_name
-    ]
+    return
 
 
 if __name__ == '__main__':

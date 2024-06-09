@@ -21,7 +21,7 @@ def deserialize_file_container(file):
 def serialize_file(_type, input_dir_path, file_name, block):
     wrapped_block = {}
     wrapped_block.update({'type': _type})
-    wrapped_block.update({'file_path': input_dir_path + "/" + file_name})
+    wrapped_block.update({'file_path': input_dir_path + '/' + file_name})
     wrapped_block.update({'block': block})
     return json.dumps(wrapped_block, indent=2, ensure_ascii=False)
 

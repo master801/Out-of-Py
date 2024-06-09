@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import struct
+import os
 
 if not __debug__:  # Dev workspace
     from src import mahouka_json, constants
@@ -10,8 +11,8 @@ else:
     from builders import builders
 
 
-def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path):
-    input_file_path = full_input_dir_path + '/' + input_file_name
+def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path, overwrite):
+    input_file_path = full_input_dir_path + constants.FILE_PATH_SEPARATOR + input_file_name
 
     print('Found json file \"{0}\"'.format(input_file_path))
 
@@ -23,24 +24,23 @@ def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
     deserialized_file_path = deserialized_file_container[1]
     deserialized_block = deserialized_file_container[2]
 
-    encoded_file_data = encode_file_data(_type, deserialized_block)
+    if os.path.isfile(output_dir_path + constants.FILE_PATH_SEPARATOR + deserialized_file_path):
+        # Remove file if specified
+        if overwrite:
+            os.remove(output_dir_path + constants.FILE_PATH_SEPARATOR + deserialized_file_path)
+            pass
+        else:
+            print('File {0} already exists! Not decoding...'.format(deserialized_file_path))
+            return
 
+    encoded_file_data = encode_file_data(_type, deserialized_block)
     if encoded_file_data is None:
         print('Failed to deserialize file?!')
         return
 
-
-    import os
-    if os.path.isfile(output_dir_path + '/' + deserialized_file_path):
-        if not __debug__:
-            os.remove(output_dir_path + '/' + deserialized_file_path)  # Remove file if in dev environment
-        else:
-            print('File {0} already exists! Not decoding...'.format(deserialized_file_path))  # Only show when in user environment
-            return
-
     write_encoded(deserialized_file_path, output_dir_path, _type, encoded_file_data)
 
-    print('Wrote deserialized file \"{0}\" to \"{1}\"\n'.format(input_file_path, output_dir_path + '/' + deserialized_file_path))
+    print('Wrote deserialized file \"{0}\" to \"{1}/{2}\"\n'.format(input_file_path, output_dir_path, deserialized_file_path))
 
 
 def encode_file_data(_type, deserialized):
@@ -72,9 +72,10 @@ def encode_lua(deserialized):
         voice = None
 
         if len(deserialized_block) > 0:
-            name = deserialized_block['0']['name']
-            txt_list = deserialized_block['1']['txt']
+            name = encode_utf8_text_to_hex(deserialized_block['0']['name'])
+            txt_list = encode_utf8_text_to_hex(deserialized_block['1']['txt'])
             voice = deserialized_block['2']['voice']
+            pass
 
         builder = builders.BlockBuilder(deserialized_block_key, name, txt_list, voice)
         line = builder.to_source()
@@ -94,6 +95,35 @@ def encode_lua(deserialized):
         continue
 
     return data
+
+
+def encode_utf8_text_to_hex(utf8_text):
+    if isinstance(utf8_text, list):
+        new_list = []
+        for utf8_text_i in utf8_text:
+            new_list.append(encode_utf8_text_to_hex(utf8_text_i))
+            continue
+        return new_list
+
+    # Already encoded
+    if utf8_text.startswith('\\x'):
+        return utf8_text
+
+    hexed = utf8_text.encode('utf-8')
+
+    concat = ''
+    for i in range(len(hexed)):
+        hex_char = hex(hexed[i])
+        if len(hex_char) == 3:
+            bk_hex_char = hex_char
+            hex_char = bk_hex_char[:2] + '0' + bk_hex_char[2:]
+            pass
+        concat += hex_char
+        continue
+
+    upper = concat.upper()
+    replaced = upper.replace('0X', '\\x')
+    return replaced
 
 
 def encode_bin_char_menu_param(deserialized):
@@ -446,7 +476,6 @@ def encode_bin_tuning_list(deserialized):
 def write_encoded(output_file_path, output_dir, _type, deserialized_file):
     output_file_dir = output_dir + '/' + output_file_path[:output_file_path.rindex('/')]
 
-    import os
     if not os.path.isdir(output_file_dir):
         print('Directory {0} does not exist. Creating...'.format(output_file_dir))
         os.makedirs(output_file_dir, 0o775, True)
@@ -454,7 +483,10 @@ def write_encoded(output_file_path, output_dir, _type, deserialized_file):
 
     output_file_complete_path = output_dir + '/' + output_file_path
     output_file = open(output_file_complete_path, mode='x+b')
+
     try:
         output_file.write(deserialized_file)
+        pass
     finally:
         output_file.close()
+        pass

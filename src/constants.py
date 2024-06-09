@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 
+import os
+import sys
+
+if sys.platform == 'linux':
+    FILE_PATH_SEPARATOR = os.path.altsep
+    pass
+else:
+    FILE_PATH_SEPARATOR = os.path.sep
+    pass
+
 MODE_DECODE = 'DECODE'
 MODE_ENCODE = 'ENCODE'
 
