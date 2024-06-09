@@ -20,3 +20,5 @@ Thumbs.db
 ##Python
 /venv
 /.gtm
+/*/__pycache__
+/*/*/__pycache__

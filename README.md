@@ -17,13 +17,15 @@ Install [py-lua-parser](https://github.com/boolangery/py-lua-parser) by running 
 ## Usage
 
 #### Arguments:
-- `--mode` [`DECODE`, `ENCODE`]
-- `--input` [`INPUT_DIRECTORY`]
-- `--output` [`OUTPUT_DIRECTORY`]
+- `--mode` [`DECODE`, `ENCODE`] - Mode to use
+- `--input` [`INPUT_DIRECTORY`] - Input directory
+- `--output` [`OUTPUT_DIRECTORY`] - Output directory
+- `--threads` [`THREADS`] - Amount of threads to use for processing files. Default is 2
 
 ##### Example usage:
 ```
 python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR
+python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR --threads=4
 ```
 
 ### Currently Supports:
@@ -32,6 +34,6 @@ python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR
 - [x] Graph2D/Tutorial/TutorialList.bin
 - [x] Param/Atk/CadParam.bin
 - [x] Param/Atk/CadTextParam.bin
-- [ ] Param/Atk/CharMenuParam.bin
+- [x] Param/Atk/CharMenuParam.bin
 - [x] Param/Atk/MagicParam.bin
 - [x] Param/Atk/MagicText.bin
