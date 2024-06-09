@@ -12,19 +12,16 @@ import decode
 import encode
 
 
-def find_files(mode, _dir):
+def _find_files(mode, _dir):
     if mode == constants.MODE_DECODE:
         return [
-            [
-                pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*_Txt.lua'), recursive=True)
-            ],
-            [
-                pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*.bin'), recursive=True)
-            ]
+            *(pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*_Txt.lua'), recursive=True)),
+            *(pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*.bin'), recursive=True))
         ]
     elif mode == constants.MODE_ENCODE:
         return [
-            pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*.json'), recursive=True)
+            *(pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*.csv'), recursive=True)),
+            *(pathlib.Path(i) for i in glob.iglob(os.path.join(_dir, '**', '*.json'), recursive=True))
         ]
     else:
         return None
@@ -75,81 +72,87 @@ def __main__():
 
     mode = args.mode[0].upper()
     _input = args.input[0]
-    _output = args.output[0]
+    _output = pathlib.Path(args.output[0])
     threads = args.threads[0]
 
-    files = find_files(mode, _input)  # Find files in given input dir
-    if files == None:
+    fps: list[pathlib.Path] = _find_files(mode, _input)  # Find files in given input dir
+    if fps == None:
         print('Could not find any files?!')
         return
 
+    if not os.path.exists(_output):
+        os.makedirs(_output)
+        pass
+
     jobs: list[multiprocessing.Process] = []
     if mode == constants.MODE_DECODE:
-        for path_lua in files[0]:
-            fp_out_lua = os.path.join(_output, path_lua.name + '.json')
-            if os.path.isfile(fp_out_lua):
-                if not args.overwrite:
-                    print(f'Found already decoded JSON file \"{path_lua}\"...{os.linesep}')
-                    continue
-                pass
-            pass
-
-            # Decode lua
-            if threads <= 2:
-                decode.decode_file(path_lua, fp_out_lua, args.overwrite)
-                pass
-            else:
-                process = multiprocessing.Process(
-                    target=decode.decode_file,
-                    args=(path_lua, fp_out_lua, args.overwrite)
-                )
-                jobs.append(process)
-                pass
-            del fp_out_lua
+        for fp in fps:
+            for _type in constants.Type:
+                matches = _type.value.regex.match(fp.name)
+                if matches != None:
+                    if threads <= 1:
+                        decode.decode_file(
+                            fp,
+                            pathlib.Path(
+                                os.path.join(_output, ''.join([fp.name, _type.value.decode_ext]))
+                            ),
+                            _type,
+                            args.overwrite
+                        )
+                        pass
+                    else:
+                        process = multiprocessing.Process(
+                            target=decode.decode_file,
+                            args=(
+                                fp,
+                                pathlib.Path(
+                                    os.path.join(_output, ''.join([fp.name, _type.value.decode_ext]))
+                                ),
+                                _type,
+                                args.overwrite
+                            )
+                        )
+                        jobs.append(process)
+                        del process
+                        pass
+                    break
+                del matches
+                continue
+            del _type
             continue
-        del path_lua
-
-        for path_bin in files[1]:
-            fp_out_bin = os.path.join(_output, path_bin.name + '.json')
-            if os.path.isfile(fp_out_bin):
-                if not args.overwrite:
-                    print(f'Found already decoded JSON file \"{path_bin}\"...{os.linesep}')
-                    continue
-                pass
-            pass
-
-            # Decode bin
-            if threads < 2:
-                decode.decode_file(path_bin, fp_out_bin, args.overwrite)
-                pass
-            else:
-                process = multiprocessing.Process(
-                    target=decode.decode_file,
-                    args=(path_bin, fp_out_bin, args.overwrite)
-                )
-                jobs.append(process)
-                del process
-                pass
-            del fp_out_bin
-            continue
-        del path_bin
+        del fp
         pass
     elif mode == constants.MODE_ENCODE:
-        for path_json in files:
-            # Encode file
-            if threads <= 2:
-                encode.encode_file(path_json, _output, args.overwrite)
-                pass
-            else:
-                process = multiprocessing.Process(
-                    target=encode.encode_file,
-                    args=(path_json, _output, args.overwrite)
-                )
-                jobs.append(process)
-                del process
-                pass
+        for fp in fps:
+            for _type in constants.Type:
+                matches = _type.value.regex.match(fp.name)
+                if matches != None:
+                    if threads <= 1:
+                        encode.encode_file(
+                            fp,
+                            pathlib.Path(_output),
+                            _type,
+                            args.overwrite
+                        )
+                        pass
+                    else:
+                        process = multiprocessing.Process(
+                            target=encode.encode_file,
+                            args=(
+                                fp,
+                                pathlib.Path(_output),
+                                _type,
+                                args.overwrite
+                            )
+                        )
+                        jobs.append(process)
+                        del process
+                        pass
+                    break
+                continue
+            del _type
             continue
-        del path_json
+        del fp
         pass
     else:
         print('No mode specified!')
@@ -167,7 +170,6 @@ def __main__():
                 processed_job = processed_jobs[processed_job_index]
                 processed_job.join()
                 continue
-
             processed_jobs.clear()
             pass
         job.start()

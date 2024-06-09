@@ -4,194 +4,245 @@
 import os
 import typing
 import pathlib
-import luaparser
-from luaparser import ast
-from luaparser import astnodes
+import csv
+import codecs
+
+from luaparser import ast, astnodes
 
 import constants
-import mahouka_json
+import mahouka_data
+import models
 from formats import cadparam, cadtextparam, charmenuparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
 
-
-# Do not have output file as a file - No need to create a file if we're not using it yet
-def decode_file(path_file: pathlib.Path, out_file: str, overwrite: bool):
-    if path_file.suffix == '.lua':
-        with open(path_file, 'rt', encoding='utf-8') as lua_input_file:
-            block = parse_lua(lua_input_file)
-            serialized_lua_json = mahouka_json.serialize_lua(block)
-            write_json(serialized_lua_json, out_file, overwrite)
-            pass
-    elif path_file.suffix == '.bin':
-        with open(path_file, 'rb') as io_bin:
-            parsed_bin_blob = parse_bin(path_file.name, io_bin)
-            if parsed_bin_blob is None:
-                print(f'Failed to parse bin file \"{path_file}\"!')
-                return
-            pass
-        del io_bin
-
-        _type = parsed_bin_blob[0]
-        parsed_bin = parsed_bin_blob[1]
-        serialized_bin_json = mahouka_json.serialize_bin(_type, parsed_bin)
-        write_json(serialized_bin_json, out_file, overwrite)
-        del serialized_bin_json
-        pass
-    return
-
-
-def parse_lua(lua_file: typing.TextIO) -> dict:
-    print(f'Decoding lua input file {lua_file.name}...')
-
-    tree = ast.parse(lua_file.read())
-
-    block = {}
-    for node in ast.walk(tree):
-        if isinstance(node, astnodes.Block):
-            print(f'Contains {len(node.body)} blocks')
-            for body_block in node.body:
-                key_name = body_block.targets[0].id
-                fields = body_block.values[0].fields
-
-                print(f'Decoding text block \'{key_name}\'')
-                print(f'Text block contains {len(fields)} entries')
-
-                sub_blocks = {}
-                for index in range(len(fields)):
-                    field = fields[index]
-                    field_name = field.key.id
-
-                    if isinstance(field.value, luaparser.astnodes.String):
-                        field_value = decode_hex_utf8_string(field.value.s)
-                        pass
-                    elif isinstance(field.value, luaparser.astnodes.Concat):
-                        values = []
-
-                        tmp = field.value
-                        while isinstance(tmp, astnodes.Concat):
-                            if isinstance(tmp.left, astnodes.String):
-                                values.append(tmp.left.s)
-                                pass
-
-                            values.append(tmp.right.s)
-                            tmp = tmp.left
-                            continue
-
-                        value = []
-
-                        if len(values) == 2:
-                            value.append(decode_hex_utf8_string(values[0]))
-                            value.append(decode_hex_utf8_string(values[1]))
-                            pass
-                        elif len(values) == 3:
-                            value.append(decode_hex_utf8_string(values[1]))
-                            value.append(decode_hex_utf8_string(values[2]))
-                            value.append(decode_hex_utf8_string(values[0]))
-                            pass
-                        else:
-                            print('More lines than expected in lua script file!')
-                            pass
-
-                        field_value = value
-                        pass
-
-                    sub_blocks[index] = {field_name: field_value}  # Add our mapped value
-                    continue
-
-                block.update({key_name: sub_blocks})
-
-                print()  # New line = Pretty
-                continue
-            continue
-        continue
-    return block
+BIN_FROM_IO: dict[constants.Type: typing.Callable] = {
+    constants.Type.TYPE_BIN_CHAR_MENU_PARAM: charmenuparam.Charmenuparam.from_io,  # CharMenuParam.bin
+    constants.Type.TYPE_BIN_CAD_TEXT_PARAM: cadtextparam.Cadtextparam.from_io,  # CadTextParam.bin
+    constants.Type.TYPE_BIN_CAD_PARAM: cadparam.Cadparam.from_io,  # CadParam.bin
+    constants.Type.TYPE_BIN_MAGIC_TEXT: magictext.Magictext.from_io,  # MagicText.bin
+    constants.Type.TYPE_BIN_MAGIC_PARAM: magicparam.Magicparam.from_io,  # MagicParam.bin
+    constants.Type.TYPE_BIN_TUTORIAL_LIST: tutoriallist.Tutoriallist.from_io,  # TutorialList.bin
+    constants.Type.TYPE_BIN_TUNING_LIST: imh_tuning_list_x_xx.ImhTuningListXXx.from_io  # IMH_Tuning_List_X_XX.bin
+}
 
 
 def decode_hex_utf8_string(encoded_hex_utf8_string: str) -> str:
     # Empty string
-    if len(encoded_hex_utf8_string) < 1:
+    if len(encoded_hex_utf8_string) < 1 or not encoded_hex_utf8_string.startswith('\\x'):
         return encoded_hex_utf8_string
-
-    # String not encoded
-    if not encoded_hex_utf8_string.startswith('\\x'):
-        return encoded_hex_utf8_string
-
-    split = encoded_hex_utf8_string.split('\\x')
-    split.pop(0)
-
-    hexed = bytes.fromhex(''.join(split))
+    decoded_bytes = codecs.decode(encoded_hex_utf8_string, 'unicode_escape').encode('latin1')
     try:
-        decoded = hexed.decode('utf-8')
-        pass
+        decoded = decoded_bytes.decode('utf-8', errors='backslashreplace')
     except UnicodeDecodeError:
         print('Failed to decode string!')
         print(f'String: \'{encoded_hex_utf8_string}\'')
         return encoded_hex_utf8_string
-    del hexed
-
     return decoded
 
 
-def write_json(serialized_json, fp_out: str, overwrite: bool):
-    if os.path.exists(fp_out):
-        if overwrite:
-            mode = 'w+'
+def decode_lua(io_lua: typing.TextIO) -> list[models.ModelEvtTxt]:
+    print(f'Parsing file \"{io_lua.name}\"...')
+    tree = ast.parse(io_lua.read())
+
+    # DEBUG
+    # print('DUMP LUA')
+    # print(ast.to_pretty_str(tree))
+    # print()
+
+    texts: list[models.ModelEvtTxt] = []
+    for node_assign in tree.body.body:
+        if isinstance(node_assign, astnodes.Assign):
+            node_name_id = node_assign.targets[0]
+            if isinstance(node_name_id, astnodes.Name):
+                _id = node_name_id.id
+                pass
+            else:
+                print('Could not find id!')
+                continue
+
+            node_table = node_assign.values[0]
+            if isinstance(node_table, astnodes.Table):
+                if len(node_table.fields) == 3:
+                    node_field_name = node_table.fields[0]
+                    node_field_txt = node_table.fields[1]
+                    node_field_voice = node_table.fields[2]
+
+                    if isinstance(node_field_name.value, astnodes.String):
+                        name = node_field_name.value.s
+                        pass
+                    else:
+                        print('Unexpected type for \"name\"?!')
+                        print(node_field_name.value.__class__)
+                        continue
+
+                    if isinstance(node_field_txt.value, astnodes.Concat):
+                        text_build: list[str] = []
+
+                        tmp = node_field_txt.value
+                        while isinstance(tmp, astnodes.Concat):
+                            if isinstance(tmp.left, astnodes.String):
+                                text_build.append(tmp.left.s)
+                                pass
+
+                            if isinstance(tmp.right, astnodes.String):
+                                text_build.append(tmp.right.s)
+                                pass
+                            else:
+                                print('Unexpected node!')
+                                break
+                            tmp = tmp.left
+                            continue
+                        del tmp
+
+                        if len(text_build) == 3:
+                            text_build.insert(2, text_build.pop(0))
+                            pass
+                        elif len(text_build) == 1 or len(text_build) == 2:
+                            # NOOP
+                            pass
+                        else:
+                            print('Unexpected \"txt\" lines!')
+                            continue
+
+                        text = decode_hex_utf8_string(''.join(text_build))
+                        del text_build
+                        pass
+                    elif isinstance(node_field_txt.value, astnodes.String):
+                        text = node_field_txt.value.s
+                        pass
+                    else:
+                        print(node_field_txt.value.__class__)
+                        print('Unexpected type for \"txt\"?!')
+                        continue
+
+                    if isinstance(node_field_voice.value, astnodes.String):
+                        voice = node_field_voice.value.s
+                        pass
+                    else:
+                        print(node_field_voice.value.__class__)
+                        print('Unexpected type for \"voice\"?!')
+                        continue
+
+                    texts.append(
+                        models.ModelEvtTxt(
+                            _id,
+                            decode_hex_utf8_string(name),
+                            decode_hex_utf8_string(text),
+                            voice
+                        )
+                    )
+                    pass
+                elif len(node_table.fields) == 0:  # empty block
+                    texts.append(
+                        models.ModelEvtTxt(_id)
+                    )
+                    pass
+                pass
             pass
-        else:
-            print(f'Json file \"{fp_out}\" already exists{os.linesep}!?')
+        continue
+    return texts
+
+
+# noinspection PyUnboundLocalVariable,PyArgumentList
+def decode_file(path_file: pathlib.Path, out_file: pathlib.Path, _type: constants.Type, overwrite: bool):
+    if path_file.suffix == '.lua':
+        with open(path_file, 'rt', encoding='utf-8') as io_lua:
+            decoded_csv = decode_lua(io_lua)
+            pass
+        del io_lua
+        pass
+    else:
+        with open(path_file, 'rb') as io_bin:
+            parsed_bin_callable: typing.Callable[[typing.BinaryIO], any] = BIN_FROM_IO[_type]
+            parsed_bin = parsed_bin_callable(io_bin)
+            del parsed_bin_callable
+            pass
+        del io_bin
+
+        if parsed_bin is None:
+            print(f'Failed to parse bin file \"{path_file}\"!')
             return
+
+        if _type.value.decode_ext == '.json':
+            serialized_json = mahouka_data.serialize_bin(_type, parsed_bin)
+            pass
+        pass
+
+    if out_file.exists() and overwrite:
+        mode = 'w+'
         pass
     else:
         mode = 'x'
         pass
-    with open(fp_out, mode=f'{mode}t', newline=os.linesep, encoding='utf-8') as io_of:
-        io_of.write(serialized_json)
-        pass
-    print(f'Wrote decoded JSON file \"{fp_out}\"')
-    del mode
-    del io_of
-    return
 
+    if _type.value.decode_ext == '.csv':
+        with open(out_file, mode=f'{mode}t', encoding='utf-8', newline='') as io_text_csv:
+            csv_writer = csv.writer(io_text_csv, quoting=csv.QUOTE_NONNUMERIC)
 
-def parse_bin(fn_bin: str, bin_file: typing.BinaryIO):
-    _type = None
-    for iterating_type in constants.TYPES_BIN:
-        if fn_bin.startswith(iterating_type[0]):
-            _type = iterating_type[1]
-            print(f'Detected type \"{_type}\" for bin file {bin_file.name}')
-            break
-        elif fn_bin.startswith('CharBattleParam') or fn_bin.startswith('MeleeParam'):
-            print(f'Bin file \"{fn_bin}\" is not supported!')
-            return None
-        continue
+            if _type == constants.Type.TYPE_TXT_LUA:
+                csv_writer.writerow(['id', 'name', 'text', 'voice'])
+                for text in decoded_csv:
+                    csv_writer.writerow([text.id, text.name, text.text, text.voice])
+                    continue
+                pass
+            elif _type == constants.Type.TYPE_BIN_CAD_PARAM and isinstance(parsed_bin, cadparam.Cadparam):
+                csv_writer.writerow([
+                    'index', 'sub_index', 'text', 'unknown_1', 'unknown_2', 'unknown_3', 'unknown_4',
+                    'unknown_5', 'unknown_6', 'unknown_7', 'unknown_8', 'unknown_9', 'unknown_10', 'unknown_12'
+                ])
 
-    if _type is None:
-        print(f'Unknown type for bin file \"{bin_file.name}\" - Defaulting to \"{constants.Type.TYPE_BIN_TUNING_LIST}\"')
-        _type = constants.Type.TYPE_BIN_TUNING_LIST
-        pass
+                for i in parsed_bin.params:
+                    csv_writer.writerow([
+                        i.index, i.sub_index, i.text, i.unknown_1, i.unknown_2, i.unknown_3, i.unknown_4,
+                        i.unknown_5, i.unknown_6, i.unknown_7, i.unknown_8, i.unknown_9, i.unknown_10, i.unknown_12
+                    ])
+                    continue
+                del i
+                pass
+            elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM and isinstance(parsed_bin, cadtextparam.Cadtextparam):
+                csv_writer.writerow(['index', 'text', 'title'])
 
-    if _type == constants.Type.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
-        parsed_bin = charmenuparam.Charmenuparam.from_io(bin_file)
-        pass
-    elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
-        parsed_bin = cadtextparam.Cadtextparam.from_io(bin_file)
-        pass
-    elif _type == constants.Type.TYPE_BIN_CAD_PARAM:  # CadParam.bin
-        parsed_bin = cadparam.Cadparam.from_io(bin_file)
-        pass
-    elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
-        parsed_bin = magictext.Magictext.from_io(bin_file)
-        pass
-    elif _type == constants.Type.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
-        parsed_bin = magicparam.Magicparam.from_io(bin_file)
-        pass
-    elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
-        parsed_bin = tutoriallist.Tutoriallist.from_io(bin_file)
-        pass
-    elif _type == constants.Type.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
-        parsed_bin = imh_tuning_list_x_xx.ImhTuningListXXx.from_io(bin_file)
+                for i in parsed_bin.blocks:
+                    csv_writer.writerow([i.index, i.text.decode('utf-8'), i.title.decode('utf-8')])
+                    continue
+                del i
+                pass
+            elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT and isinstance(parsed_bin, magictext.Magictext):
+                csv_writer.writerow(['id_1', 'id_2', 'text'])
+
+                for i in parsed_bin.blocks:
+                    csv_writer.writerow([i.id_1, i.id_2, i.text])
+                    continue
+                del i
+                pass
+            elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST and isinstance(parsed_bin, tutoriallist.Tutoriallist):
+                csv_writer.writerow([
+                    'current_page_index', 'last_page_index', 'previous_page_index', 'next_page_index',
+                    'unknown_1', 'unknown_2', 'unknown_3', 'title', 'text'
+                ])
+
+                for i in parsed_bin.entries:
+                    csv_writer.writerow([
+                        i.current_page_index, i.last_page_index, i.previous_page_index, i.next_page_index,
+                        i.unknown_1, i.unknown_2, i.unknown_3, i.title, i.text
+                    ])
+                    continue
+                del i
+                pass
+            else:
+                print(f'Could not parse csv file \"{path_file}\" for type \"{_type}\"!')
+                breakpoint()
+                pass
+
+            del csv_writer
+            pass
+        del io_text_csv
         pass
     else:
-        print('Unknown bin type!')
-        print(_type)
-        return None
-    return [_type, parsed_bin]
+        with open(out_file, mode=f'{mode}t', encoding='utf-8') as io_of:
+            io_of.write(serialized_json)
+            pass
+        del mode
+        del io_of
+        pass
+    print(f'Wrote file \"{out_file}\"{os.linesep}')
+    return

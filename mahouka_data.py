@@ -5,56 +5,40 @@ import json
 
 import constants
 
-
-def deserialize_file_container(file) -> list[dict]:
-    deserialized_json = json.load(file)
-    return [
-        deserialized_json['type'],
-        deserialized_json['block']
-    ]
+from formats import imh_tuning_list_x_xx
 
 
 def _serialize_file(_type: constants.Type, block: dict) -> str:
-    wrapped_block = {}
-    wrapped_block.update({'type': _type.value})
-    wrapped_block.update({'block': block})
-    return json.dumps(wrapped_block, indent=2, ensure_ascii=False)
-
-
-def serialize_lua(block) -> str:
-    return _serialize_file(
-        constants.Type.TYPE_LUA,
-        block
+    return json.dumps(
+        block,
+        indent=2,
+        ensure_ascii=False
     )
 
 
 def serialize_bin(_type, _bin) -> str:
     return _serialize_file(
         _type,
-        serialize_bin_type(_type, _bin)
+        _serialize_bin_type(_type, _bin)
     )
 
 
-def serialize_bin_type(_type, _bin):
+def _serialize_bin_type(_type, _bin):
     if _type == constants.Type.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
-        return serialize_bin_char_menu_param(_bin)
+        return _serialize_bin_char_menu_param(_bin)
     elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
-        return serialize_bin_cad_text_param(_bin)
-    elif _type == constants.Type.TYPE_BIN_CAD_PARAM:  # CadParam.bin
-        return serialize_bin_cad_param(_bin)
-    elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
-        return serialize_bin_magic_text(_bin)
+        return _serialize_bin_cad_text_param(_bin)
     elif _type == constants.Type.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
-        return serialize_bin_magic_param(_bin)
+        return _serialize_bin_magic_param(_bin)
     elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
-        return serialize_bin_tutorial_list(_bin)
+        return _serialize_bin_tutorial_list(_bin)
     elif _type == constants.Type.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
-        return serialize_bin_tuning_list(_bin)
+        return _serialize_bin_tuning_list(_bin)
     else:
         raise Exception(f'Type \"{_type}\" not specified or is invalid!')
 
 
-def serialize_bin_char_menu_param(_bin):
+def _serialize_bin_char_menu_param(_bin):
     serialized = []
 
     for block in _bin.blocks:
@@ -110,7 +94,7 @@ def serialize_bin_char_menu_param(_bin):
     return serialized
 
 
-def serialize_bin_cad_text_param(_bin):
+def _serialize_bin_cad_text_param(_bin):
     serialized = []
 
     for block in _bin.blocks:
@@ -138,53 +122,7 @@ def serialize_bin_cad_text_param(_bin):
     return serialized
 
 
-def serialize_bin_cad_param(_bin):
-    serialized = {}
-
-    params = []
-    for param in _bin.params:
-        param_serialized = {}
-
-        param_serialized.update({'index': param.index})
-        param_serialized.update({'sub_index': param.sub_index})
-        param_serialized.update({'text': param.text})
-        param_serialized.update({'unknown_1': param.unknown_1})
-        param_serialized.update({'unknown_2': param.unknown_2})
-        param_serialized.update({'unknown_3': param.unknown_3})
-        param_serialized.update({'unknown_4': param.unknown_4})
-        param_serialized.update({'unknown_5': param.unknown_5})
-        param_serialized.update({'unknown_6': param.unknown_6})
-        param_serialized.update({'unknown_7': param.unknown_7})
-        param_serialized.update({'unknown_8': param.unknown_8})
-        param_serialized.update({'unknown_9': param.unknown_9})
-        param_serialized.update({'unknown_10': param.unknown_10})
-        # param_serialized.update({'unknown_11': param.unknown_11})
-        param_serialized.update({'unknown_12': param.unknown_12})
-
-        params.append(param_serialized)
-        continue
-
-    serialized.update({'params': params})
-    return serialized
-
-
-def serialize_bin_magic_text(_bin):
-    serialized = []
-
-    for block in _bin.blocks:
-        block_serialized = {}
-
-        block_serialized.update({'id_1': block.id_1})
-        block_serialized.update({'id_2': block.id_2})
-        block_serialized.update({'text': block.text})
-
-        serialized.append(block_serialized)
-        continue
-
-    return serialized
-
-
-def serialize_bin_magic_param(_bin):
+def _serialize_bin_magic_param(_bin):
     serialized = []
 
     for entry in _bin.entries:
@@ -322,7 +260,7 @@ def serialize_bin_magic_param(_bin):
     return serialized
 
 
-def serialize_bin_tutorial_list(_bin):
+def _serialize_bin_tutorial_list(_bin):
     serialized = {}
 
     entries = []
@@ -347,7 +285,7 @@ def serialize_bin_tutorial_list(_bin):
     return serialized
 
 
-def serialize_bin_tuning_list(_bin):  # IMH_Tuning_List_X_XX.bin
+def _serialize_bin_tuning_list(_bin: imh_tuning_list_x_xx.ImhTuningListXXx):  # IMH_Tuning_List_X_XX.bin
     blocks = []
 
     for entry in _bin.entries:
@@ -362,10 +300,11 @@ def serialize_bin_tuning_list(_bin):  # IMH_Tuning_List_X_XX.bin
             title = text_block.title
 
             try:
-                text = text_block.text.decode('utf-8')
+                text = text_block.text.decode('utf-8', errors='backslashreplace')
             except UnicodeDecodeError:
                 print('Failed to decode trimmed text... not decoding...')
                 text = text_block.text.hex()
+                pass
 
             text_block_map.update({'title': title})
             text_block_map.update({'text': text})

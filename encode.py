@@ -1,133 +1,63 @@
 #!/usr/bin/env python3
 # Created by Master on 4/3/2019
 
+import io
 import struct
 import os
 import pathlib
+import csv
+import json
 
-import mahouka_json
+import models
 import constants
 
-from builders import builders
+LENGTH_BIN_CHAR_MENU_PARAM_CHUNK = 0x264
+LENGTH_BIN_CAD_PARAM_CHUNK = 0x164
+LENGTH_BIN_CAD_TEXT_PARAM = 0x144
+LENGTH_BIN_MAGIC_TEXT_CHUNK = 0x208
+LENGTH_BIN_MAGIC_PARAM_CHUNK = 0x1FC
+LENGTH_BIN_TUTORIAL_LIST_CHUNK = 0x29C
 
 
-def encode_file(path_json: pathlib.Path, output_dir_path: str, overwrite: bool):
-    print(f'Found JSON file \"{path_json}\"')
-
-    with open(path_json, mode='rt', encoding='utf-8') as io_json:
-        deserialized_file_container = mahouka_json.deserialize_file_container(io_json)
-        pass
-    del io_json
-
-    _type = deserialized_file_container[0]
-    deserialized_block = deserialized_file_container[1]
-
-    fp_output: pathlib.Path = pathlib.Path(os.path.join(output_dir_path, path_json.stem))
-
-    if (fp_output.exists() and fp_output.is_file()) and not overwrite:
-        print(f'File \"{fp_output}\" already exists! Not encoding...{os.linesep}')
-        return
-
-    encoded_file_data = encode_file_data(_type, deserialized_block)
-    if encoded_file_data is None:
-        print('Failed to deserialize file?!')
-        breakpoint()
-        return
-
-    write_encoded(fp_output, encoded_file_data, overwrite)
-
-    print(f'Wrote deserialized file \"{path_json}\" to \"{os.path.join(output_dir_path, path_json.name)}\"{os.linesep}')
-    return
+def _encode_utf8_text_to_hex(utf8_text: str) -> str:
+    return ''.join(f'\\x{i:02X}' for i in utf8_text.encode('utf-8'))
 
 
-def encode_file_data(_type, deserialized) -> bytearray:
-    if _type == constants.Type.TYPE_LUA.value:
-        return encode_lua(deserialized)
-    elif _type == constants.Type.TYPE_BIN_CHAR_MENU_PARAM.value:  # CharMenuParam.bin
-        return encode_bin_char_menu_param(deserialized)
-    elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM.value:  # CadTextParam.bin
-        return encode_bin_cad_text_param(deserialized)
-    elif _type == constants.Type.TYPE_BIN_CAD_PARAM.value:  # CadParam.bin
-        return encode_bin_cad_param(deserialized)
-    elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT.value:  # MagicText.bin
-        return encode_bin_magic_text(deserialized)
-    elif _type == constants.Type.TYPE_BIN_MAGIC_PARAM.value:  # MagicParam.bin
-        return encode_bin_magic_param(deserialized)
-    elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST.value:  # TutorialList.bin
-        return encode_bin_tutorial_list(deserialized)
-    elif _type == constants.Type.TYPE_BIN_TUNING_LIST.value:  # IMH_Tuning_List_X_XX.bin
-        return encode_bin_tuning_list(deserialized)
-
-
-def encode_lua(deserialized) -> bytearray:
-    blocks = []
-    for deserialized_block_key in deserialized:
-        deserialized_block = deserialized[deserialized_block_key]
-
-        name = None
-        txt_list = None
-        voice = None
-
-        if len(deserialized_block) > 0:
-            name = encode_utf8_text_to_hex(deserialized_block['0']['name'])
-            txt_list = encode_utf8_text_to_hex(deserialized_block['1']['txt'])
-            voice = deserialized_block['2']['voice']
+def _encode_lua(deserialized: list[models.ModelEvtTxt]) -> bytes:
+    build = []
+    for i in deserialized:
+        build.append(f'{i.id} = {{\r\n')
+        build.append(f'\tname = \'{_encode_utf8_text_to_hex(i.name)}\',\r\n')
+        if len(i.text) != 0:
+            build.append(f'\ttxt = ')
+            nl_split = i.text.splitlines(keepends=True)
+            if len(nl_split) == 1:
+                build.append(f'\'{_encode_utf8_text_to_hex(nl_split[0])}\',\r\n')
+                pass
+            else:
+                build.append(f'\'{_encode_utf8_text_to_hex(nl_split[0])}\'..\r\n')
+                for j in range(len(nl_split) - 2):
+                    build.append(f'\t\t\'{_encode_utf8_text_to_hex(nl_split[j+1])}\'..\r\n')
+                    del j
+                    continue
+                build.append(f'\t\t\'{_encode_utf8_text_to_hex(nl_split[-1])}\',\r\n')
+                pass
+            del nl_split
             pass
-
-        builder = builders.BlockBuilder(deserialized_block_key, name, txt_list, voice)
-        line = builder.to_source()
-
-        blocks.append(line)
+        build.append(f'\tvoice = \"{i.voice}\"\r\n')
+        build.append('}\r\n\r\n')
+        del i
         continue
-
-    data = bytearray()
-    for block in blocks:
-        encoded_bytes = block.encode('utf-8')
-
-        start_offset = len(data)
-        end_offset = len(encoded_bytes)
-
-        data[start_offset:end_offset] = encoded_bytes
-        continue
-    return data
+    return ''.join(build).encode('utf-8')
 
 
-def encode_utf8_text_to_hex(utf8_text):
-    if isinstance(utf8_text, list):
-        new_list = []
-        for utf8_text_i in utf8_text:
-            new_list.append(encode_utf8_text_to_hex(utf8_text_i))
-            continue
-        return new_list
-
-    # Already encoded
-    if utf8_text.startswith('\\x'):
-        return utf8_text
-
-    hexed = utf8_text.encode('utf-8')
-
-    concat = ''
-    for i in range(len(hexed)):
-        hex_char = hex(hexed[i])
-        if len(hex_char) == 3:
-            bk_hex_char = hex_char
-            hex_char = bk_hex_char[:2] + '0' + bk_hex_char[2:]
-            pass
-        concat += hex_char
-        continue
-
-    upper = concat.upper()
-    replaced = upper.replace('0X', '\\x')
-    return replaced
-
-
-def encode_bin_char_menu_param(deserialized) -> bytearray:
-    encoded_data = bytearray(constants.LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * len(deserialized))
+def _encode_bin_char_menu_param(deserialized) -> bytearray:
+    encoded_data = bytearray(LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * len(deserialized))
 
     for entry_index in range(len(deserialized)):
         entry = deserialized[entry_index]
 
-        encoded_entry_data = bytearray(constants.LENGTH_BIN_CHAR_MENU_PARAM_CHUNK)
+        encoded_entry_data = bytearray(LENGTH_BIN_CHAR_MENU_PARAM_CHUNK)
 
         encoded_entry_data[0x00:0x04] = struct.pack('<L', entry['index'])
         encoded_entry_data[0x04:0x08] = struct.pack('<L', entry['id'])
@@ -173,8 +103,8 @@ def encode_bin_char_menu_param(deserialized) -> bytearray:
         encoded_entry_data[0x25C:0x260] = struct.pack('<L', entry['unknown_37'])
         encoded_entry_data[0x260:0x264] = struct.pack('<L', entry['unknown_38'])
 
-        start_offset = constants.LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * entry_index
-        end_offset = constants.LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * (entry_index + 1)
+        start_offset = LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * entry_index
+        end_offset = LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * (entry_index + 1)
 
         encoded_data[start_offset:end_offset] = encoded_entry_data
         continue
@@ -182,108 +112,67 @@ def encode_bin_char_menu_param(deserialized) -> bytearray:
     return encoded_data
 
 
-def encode_bin_cad_text_param(deserialized) -> bytearray:
-    encoded_data = bytearray(constants.LENGTH_BIN_CAD_TEXT_PARAM * len(deserialized))
+def _encode_bin_cad_text_param(deserialized: list[list[int, str, str]]) -> bytes:
+    with io.BytesIO() as io_encode:
+        for i in deserialized:
+            io_encode.write(struct.pack('<I', int(i[0])))
+            io_encode.write(i[2].encode('utf-8').ljust(0x40, b'\x00'))
+            io_encode.write(i[1].encode('utf-8').ljust(0x100, b'\x00'))
+            continue
+        del i
+        data = io_encode.getvalue()
+        pass
+    del io_encode
+    return data
+
+
+def _encode_bin_cad_param(deserialized: list[list[int, int, str, int, int, int, int, int, int, int, int, int, int, int]]) -> bytes:
+    with io.BytesIO() as io_encode:
+        for i in deserialized:
+            io_encode.write(struct.pack('<I', int(i[0])))
+            io_encode.write(i[2].encode('utf-8').ljust(0x100, b'\x00'))
+            io_encode.write(struct.pack('<I', int(i[1])))
+            io_encode.write(struct.pack('<I', int(i[3])))
+            io_encode.write(struct.pack('>I', int(i[4])))
+            io_encode.write(struct.pack('>I', int(i[5])))
+            io_encode.write(struct.pack('>I', int(i[6])))
+            io_encode.write(struct.pack('>I', int(i[7])))
+            io_encode.write(struct.pack('>I', int(i[8])))
+            io_encode.write(struct.pack('>I', int(i[9])))
+            io_encode.write(struct.pack('>I', int(i[10])))
+            io_encode.write(struct.pack('>I', int(i[11])))
+            io_encode.write(struct.pack('>I', int(i[12])))
+            io_encode.write(b'\x00' * 48)
+            io_encode.write(struct.pack('<I', int(i[13])))
+            del i
+            continue
+        data = io_encode.getvalue()
+        pass
+    del io_encode
+    return data
+
+
+def _encode_bin_magic_text(deserialized: list[list[int, int, str]]) -> bytes:
+    with io.BytesIO() as io_encode:
+        for i in deserialized:
+            io_encode.write(struct.pack('<I', int(i[0])))
+            io_encode.write(struct.pack('<I', int(i[1])))
+            io_encode.write(i[2].encode('utf-8').ljust(0x200, b'\x00'))
+            continue
+        del i
+        data = io_encode.getvalue()
+        pass
+    del io_encode
+    return data
+
+
+def _encode_bin_magic_param(deserialized) -> bytearray:
+    encoded_data = bytearray(LENGTH_BIN_MAGIC_PARAM_CHUNK * len(deserialized))
 
     for entry_index in range(len(deserialized)):
         entry = deserialized[entry_index]
 
-        encoded_entry_data = bytearray(constants.LENGTH_BIN_CAD_TEXT_PARAM)
-
-        encoded_entry_data[0x00:0x04] = struct.pack('<L', entry['index'])
-        encoded_entry_data[0x04:0x44] = entry['title'].encode('utf-8').ljust(0x40, b'\x00')
-        encoded_entry_data[0x44:0x144] = entry['text'].encode('utf-8').ljust(0x100, b'\x00')
-
-        start_offset = constants.LENGTH_BIN_CAD_TEXT_PARAM * entry_index
-        end_offset = constants.LENGTH_BIN_CAD_TEXT_PARAM * (entry_index + 1)
-
-        encoded_data[start_offset:end_offset] = encoded_entry_data
-        continue
-
-    return encoded_data
-
-
-def encode_bin_cad_param(deserialized) -> bytearray:
-    params = deserialized['params']
-
-    data_block = bytearray(constants.LENGTH_BIN_CAD_PARAM_CHUNK * len(params))
-
-    for param_index in range(len(params)):
-        param = params[param_index]
-        param_data_block = bytearray(constants.LENGTH_BIN_CAD_PARAM_CHUNK)
-
-        index = param['index']
-        sub_index = param['sub_index']
-        text = param['text']
-        unknown_1 = param['unknown_1']
-        unknown_2 = param['unknown_2']
-        unknown_3 = param['unknown_3']
-        unknown_4 = param['unknown_4']
-        unknown_5 = param['unknown_5']
-        unknown_6 = param['unknown_6']
-        unknown_7 = param['unknown_7']
-        unknown_8 = param['unknown_8']
-        unknown_9 = param['unknown_9']
-        unknown_10 = param['unknown_10']
-        # unknown_11 = param['unknown_11']
-        unknown_12 = param['unknown_12']
-
-        param_data_block[0x00:0x04] = struct.pack('<L', index)
-        param_data_block[0x04:0x104] = text.encode('utf-8').ljust(0x100, b'\x00')
-        param_data_block[0x104:0x108] = struct.pack('<L', sub_index)
-        param_data_block[0x108:0x10C] = struct.pack('<L', unknown_1)
-        param_data_block[0x10C:0x110] = struct.pack('>L', unknown_2)
-        param_data_block[0x110:0x114] = struct.pack('>L', unknown_3)
-        param_data_block[0x114:0x118] = struct.pack('>L', unknown_4)
-        param_data_block[0x118:0x11C] = struct.pack('>L', unknown_5)
-        param_data_block[0x11C:0x120] = struct.pack('>L', unknown_6)
-        param_data_block[0x120:0x124] = struct.pack('>L', unknown_7)
-        param_data_block[0x124:0x128] = struct.pack('>L', unknown_8)
-        param_data_block[0x128:0x12C] = struct.pack('>L', unknown_9)
-        param_data_block[0x12C:0x130] = struct.pack('>L', unknown_10)
-        # 0x130-0x160 contains only 0x00 padding
-        param_data_block[0x160:0x164] = struct.pack('<L', unknown_12)
-
-        start_offset = constants.LENGTH_BIN_CAD_PARAM_CHUNK * param_index
-        end_offset = constants.LENGTH_BIN_CAD_PARAM_CHUNK * (param_index + 1)
-
-        data_block[start_offset:end_offset] = param_data_block
-        continue
-
-    return data_block
-
-
-def encode_bin_magic_text(deserialized) -> bytearray:
-    data_block = bytearray()
-
-    for entry_index in range(len(deserialized)):
-        entry = deserialized[entry_index]
-
-        entry_data = bytearray()
-
-        id_1 = entry['id_1']
-        id_2 = entry['id_2']
-        text = entry['text']
-
-        entry_data[0x00:0x04] = struct.pack('<L', id_1)
-        entry_data[0x04:0x08] = struct.pack('<L', id_2)
-        entry_data[0x08:0x208] = text.encode('utf-8').ljust(0x200, b'\x00')
-
-        start_offset = constants.LENGTH_BIN_MAGIC_TEXT_CHUNK * entry_index
-        end_offset = constants.LENGTH_BIN_MAGIC_TEXT_CHUNK * (entry_index + 1)
-
-        data_block[start_offset:end_offset] = entry_data
-        continue
-    return data_block
-
-
-def encode_bin_magic_param(deserialized) -> bytearray:
-    encoded_data = bytearray(constants.LENGTH_BIN_MAGIC_PARAM_CHUNK * len(deserialized))
-
-    for entry_index in range(len(deserialized)):
-        entry = deserialized[entry_index]
-
-        entry_data = bytearray(constants.LENGTH_BIN_MAGIC_PARAM_CHUNK)
+        entry_data = bytearray(LENGTH_BIN_MAGIC_PARAM_CHUNK)
 
         entry_data[0x00:0x04] = struct.pack('<L', entry['index'])
         entry_data[0x04:0x08] = struct.pack('<L', entry['sub_index_1'])
@@ -373,8 +262,8 @@ def encode_bin_magic_param(deserialized) -> bytearray:
         entry_data[0x1F4:0x1F8] = struct.pack('<L', entry['unknown_81'])
         entry_data[0x1F8:0x1FC] = struct.pack('<L', entry['unknown_82'])
 
-        start_offset = constants.LENGTH_BIN_MAGIC_PARAM_CHUNK * entry_index
-        end_offset = constants.LENGTH_BIN_MAGIC_PARAM_CHUNK * (entry_index + 1)
+        start_offset = LENGTH_BIN_MAGIC_PARAM_CHUNK * entry_index
+        end_offset = LENGTH_BIN_MAGIC_PARAM_CHUNK * (entry_index + 1)
 
         encoded_data[start_offset:end_offset] = entry_data
         continue
@@ -382,90 +271,57 @@ def encode_bin_magic_param(deserialized) -> bytearray:
     return encoded_data
 
 
-def encode_bin_tutorial_list(deserialized) -> bytearray:
-    length = deserialized['length']
-    entries = deserialized['entries']
+def _encode_bin_tutorial_list(deserialized: list[list[int, int, int, int, int, int, int, str, str]]) -> bytes:
+    with io.BytesIO() as io_encode:
+        io_encode.write(struct.pack('<I', len(deserialized)))  # length
+        for i in deserialized:
+            io_encode.write(struct.pack('<I', int(i[0])))  # current_page_index
+            io_encode.write(struct.pack('<I', int(i[1])))  # last_page_index
+            io_encode.write(struct.pack('<I', int(i[2])))  # previous_page_index
+            io_encode.write(struct.pack('<I', int(i[3])))  # next_page_index
 
-    data_block = bytearray()
+            io_encode.write(struct.pack('<I', int(i[4])))  # unknown_1
+            io_encode.write(struct.pack('<I', int(i[5])))  # unknown_2
+            io_encode.write(struct.pack('<I', int(i[6])))  # unknown_3
 
-    data_block[0x00:0x04] = struct.pack('<L', length)
-
-    for entry_index in range(len(entries)):
-        entry = entries[entry_index]
-
-        entry_data_block = bytearray()
-
-        current_page_index = entry['current_page_index']
-        last_page_index = entry['last_page_index']
-        previous_page_index = entry['previous_page_index']
-        next_page_index = entry['next_page_index']
-
-        unknown_1 = entry['unknown_1']
-        unknown_2 = entry['unknown_2']
-        unknown_3 = entry['unknown_3']
-
-        title = entry['title']
-        text = entry['text']
-
-        title_data = title.encode('utf-8')
-        text_data = text.encode('utf-8')
-
-        entry_data_block[0x00:0x04] = struct.pack('<L', current_page_index)
-        entry_data_block[0x04:0x08] = struct.pack('<L', last_page_index)
-        entry_data_block[0x08:0x0C] = struct.pack('<L', previous_page_index)
-        entry_data_block[0xC:0x10] = struct.pack('<L', next_page_index)
-
-        entry_data_block[0x10:0x14] = struct.pack('<L', unknown_1)
-        entry_data_block[0x18:0x1C] = struct.pack('<L', unknown_2)
-        entry_data_block[0x1C:0x20] = struct.pack('<L', unknown_3)
-
-        entry_data_block[0x20:0xA0] = title_data.ljust(0x80, b'\x00')
-        entry_data_block[0xA0:0x00] = text_data.ljust(0x200, b'\x00')
-
-        start_offset = 0x04 + (constants.LENGTH_BIN_TUTORIAL_LIST_CHUNK * entry_index)
-        end_offset = 0x04 + (constants.LENGTH_BIN_TUTORIAL_LIST_CHUNK * (entry_index + 1))
-        data_block[start_offset:end_offset] = entry_data_block
-        continue
-    return data_block
-
-
-def encode_bin_tuning_list(deserialized) -> bytearray:
-    data_block = bytearray()
-
-    for map_index in range(len(deserialized)):
-        _map = deserialized[map_index]
-        sub_data_block = bytearray()
-
-        _id = _map['id']
-        entries = _map['entries']
-
-        sub_data_block[0x00:0x04] = struct.pack('<L', _id)
-
-        for entry_index in range(len(entries)):
-            entry = entries[entry_index]
-
-            text_data_block = bytearray(0x140)
-
-            title = entry['title']
-            text = entry['text']
-
-            text_data = text.encode('utf-8').ljust(0x100, b'\x00')
-            title_data = title.encode('utf-8').ljust(0x40, b'\x00')
-
-            text_data_block[0x00:0x100] = text_data
-            text_data_block[0x100:0x140] = title_data
-
-            start_offset = 0x04 + (0x140 * entry_index)
-            end_offset = 0x04 + (0x140 * (entry_index + 1))
-
-            sub_data_block[start_offset:end_offset] = text_data_block
+            io_encode.write(i[7].encode('utf-8').ljust(0x80, b'\x00'))  # title
+            io_encode.write(i[8].encode('utf-8').ljust(0x200, b'\x00'))  # text
             continue
+        del i
+        data = io_encode.getvalue()
+        pass
+    del io_encode
+    return data
 
-        start_index = (0x04 + (0x04 + (0x140 * len(entries)))) * map_index
-        end_index = (0x04 + (0x140 * len(entries))) * (map_index + 1)
-        data_block[start_index:end_index] = sub_data_block
-        continue
-    return data_block
+
+def _encode_bin_tuning_list(deserialized: list[dict]) -> bytes:
+    with io.BytesIO() as io_decode:
+        for _map in deserialized:
+            io_decode.write(struct.pack('<I', _map['id']))
+            for entry in _map['entries']:
+                text_raw: bytearray = entry['text'].encode('utf-8')
+                title_raw: bytearray = entry['title'].encode('utf-8')
+
+                while b'\\x' in text_raw:
+                    i = text_raw.index(b'\\x')
+                    j = text_raw[i:i+4]
+                    k = j.decode('unicode_escape')
+                    l = k.encode('utf-8')[1:]
+                    text_raw = text_raw.replace(j, l)
+                    del l
+                    del k
+                    del j
+                    del i
+                    continue
+
+                io_decode.write(text_raw.ljust(0x100, b'\x00'))
+                io_decode.write(title_raw.ljust(0x40, b'\x00'))
+                continue
+            continue
+        data = io_decode.getvalue()
+        pass
+    del io_decode
+    return data
 
 
 def write_encoded(path_out: pathlib.Path, deserialized_file, overwrite: bool):
@@ -491,4 +347,75 @@ def write_encoded(path_out: pathlib.Path, deserialized_file, overwrite: bool):
         pass
     del mode
     del io_out
+    return
+
+
+def _encode_file_data(_type: constants.Type, deserialized) -> (bytearray | bytes):
+    if _type == constants.Type.TYPE_TXT_LUA:
+        return _encode_lua(deserialized)
+    elif _type == constants.Type.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
+        return _encode_bin_char_menu_param(deserialized)
+    elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
+        return _encode_bin_cad_text_param(deserialized)
+    elif _type == constants.Type.TYPE_BIN_CAD_PARAM:  # CadParam.bin
+        return _encode_bin_cad_param(deserialized)
+    elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
+        return _encode_bin_magic_text(deserialized)
+    elif _type == constants.Type.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
+        return _encode_bin_magic_param(deserialized)
+    elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
+        return _encode_bin_tutorial_list(deserialized)
+    elif _type == constants.Type.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
+        return _encode_bin_tuning_list(deserialized)
+
+
+def encode_file(path_file: pathlib.Path, output_dir_path: pathlib.Path, _type: constants.Type, overwrite: bool):
+    print(f'Encoding file \"{path_file}\"...')
+
+    fp_output: pathlib.Path = pathlib.Path(os.path.join(output_dir_path, path_file.stem))
+    if (fp_output.exists() and fp_output.is_file()) and not overwrite:
+        print(f'File \"{fp_output}\" already exists! Not encoding...{os.linesep}')
+        return
+    
+    newline = '' if _type.value.decode_ext == '.csv' else None
+    with open(path_file, mode='rt', encoding='utf-8', newline=newline) as io_file:
+        if _type.value.decode_ext == '.csv':
+            csv_reader = csv.reader(io_file, quoting=csv.QUOTE_NONNUMERIC)
+
+            deserialized = []
+            header = False
+            for i in csv_reader:
+                if not header:
+                    header = True
+                    continue
+                if _type == constants.Type.TYPE_TXT_LUA:
+                    deserialized.append(
+                        models.ModelEvtTxt(i[0], i[1], i[2], i[3])
+                    )
+                    pass
+                else:
+                    deserialized.append(i)
+                    pass
+                del i
+                continue
+            del header
+
+            del csv_reader
+            pass
+        else:
+            deserialized = json.load(io_file)
+            pass
+        pass
+    del io_file
+    del newline
+
+    encoded_file_data: bytearray = _encode_file_data(_type, deserialized)
+    if encoded_file_data is None:
+        print('Failed to deserialize file?!')
+        breakpoint()
+        return
+
+    write_encoded(fp_output, encoded_file_data, overwrite)
+
+    print(f'Wrote encoded file \"{path_file}\" to \"{fp_output}\"{os.linesep}')
     return
