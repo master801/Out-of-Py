@@ -3,8 +3,8 @@
 import argparse
 import glob
 import os
-import decode
-import encode
+from src import decode
+from src import encode
 
 
 # Constants
@@ -55,7 +55,7 @@ def __main__():
             something = something_to_do_with_files(_input, _output, lua_file_path)
 
             # Decode lua
-            decode.decode_file(something[0], something[1], something[2], _output)  # TODO Support multi-threading
+            # decode.decode_file(something[0], something[1], something[2], _output)  # TODO Support multi-threading
             continue
 
         for bin_file_path in bin_files:

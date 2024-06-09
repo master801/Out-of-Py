@@ -6,8 +6,15 @@ import struct
 from luaparser import ast
 from luaparser import astnodes
 
-import constants
-import mahouka_json
+from src import constants
+from src import mahouka_json
+
+from src.formats import cadparam
+from src.formats import cadtextparam
+from src.formats import charmenuparam
+from src.formats import imh_tuning_list_x_xx
+from src.formats import magictext
+from src.formats import tutoriallist
 
 
 # Do not have output file as a file - No need to create a file if we're not using it yet
@@ -30,8 +37,8 @@ def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
         _type = parsed_bin_blob[0]
         parsed_bin = parsed_bin_blob[1]
         serialized_bin_json = mahouka_json.serialize_bin(input_dir_path, input_file_name, _type, parsed_bin)
-        if _type == 'Param' or _type == 'Text' or _type == 'List' or _type == 'Page' or _type == 'TextParam':  # TODO
-            write_json(serialized_bin_json, input_file_name, output_dir_path) # TODO
+        if _type == 'TuningList':  # TODO
+            write_json(serialized_bin_json, input_file_name, output_dir_path)  # TODO
 
 
 def parse_lua(lua_file):
@@ -147,219 +154,49 @@ def parse_bin(bin_file):
         print('Unknown type for bin file {0} - Defaulting to \"{1}\"'.format(bin_file.name, _type))
         _type = constants.TYPES_BIN[len(constants.TYPES_BIN) - 1]
 
-    if _type == constants.TYPE_BIN_BATTLE_PARAM:  # CharBattleParam.bin
-        parsed_bin = parse_bin_battle_param(bin_file)  # TODO
-    elif _type == constants.TYPE_BIN_MENU_PARAM:  # CharMenuParam.bin
-        parsed_bin = parse_bin_menu_param(bin_file)  # TODO
-    elif _type == constants.TYPE_BIN_TEXT_PARAM:  # CadTextParam.bin
-        parsed_bin = parse_bin_text_param(bin_file)
-    elif _type == constants.TYPE_BIN_PARAM:  # CadParam.bin
-        parsed_bin = parse_bin_param(bin_file)
-    elif _type == constants.TYPE_BIN_TEXT:  # MagicText.bin
-        parsed_bin = parse_bin_text(bin_file)
-    elif _type == constants.TYPE_BIN_LIST:  # TutorialList.bin
-        parsed_bin = parse_bin_list(bin_file)
-    elif _type == constants.TYPE_BIN_PAGE:
-        parsed_bin = parse_bin_page(bin_file)
+    if _type == constants.TYPE_BIN_CHAR_BATTLE_PARAM:  # CharBattleParam.bin
+        parsed_bin = parse_bin_char_battle_param(bin_file)  # TODO
+    elif _type == constants.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
+        parsed_bin = parse_bin_char_menu_param(bin_file)
+    elif _type == constants.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
+        parsed_bin = parse_bin_cad_text_param(bin_file)
+    elif _type == constants.TYPE_BIN_CAD_PARAM:  # CadParam.bin
+        parsed_bin = parse_bin_cad_param(bin_file)
+    elif _type == constants.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
+        parsed_bin = parse_bin_magic_text(bin_file)
+    elif _type == constants.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
+        parsed_bin = parse_bin_tutorial_list(bin_file)
+    elif _type == constants.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
+        parsed_bin = parse_bin_tuning_list(bin_file)
     elif _type is None:
         print('Unknown bin type!')
         return None
     return [_type, parsed_bin]
 
 
-def parse_bin_battle_param(bin_file):
+def parse_bin_char_battle_param(bin_file):
     return [bytes]  # TODO
 
 
-def parse_bin_menu_param(bin_file):
-    return [bytes]  # TODO
+def parse_bin_char_menu_param(bin_file):
+    return cadtextparam.Cadtextparam.from_io(bin_file)
 
 
-def parse_bin_text_param(bin_file):
-    chunk_size = 0x144
-    offsets = [0x00, 0x04, 0x44, 0x100]
-    read_chunks = []
-
-    # Read chunks by 0x144
-    read_chunk = bin_file.read(chunk_size)
-    while read_chunk:
-        read_chunks.append(read_chunk)
-        read_chunk = bin_file.read(chunk_size)
-        continue
-
-    parsed_chunk_data = []
-    for chunk in read_chunks:
-        parsed_chunk = []
-        index_bytes = chunk[offsets[0]:offsets[1]]
-        title_bytes = chunk[offsets[1]:offsets[2]]
-        text_bytes = chunk[offsets[2]:offsets[3]]
-
-        parsed_chunk.append(index_bytes)
-        parsed_chunk.append(title_bytes)
-        parsed_chunk.append(text_bytes)
-
-        parsed_chunk_data.append(parsed_chunk)
-        continue
-
-    return parsed_chunk_data
+def parse_bin_cad_text_param(bin_file):  # CadTextParam.bin
+    return cadtextparam.Cadtextparam.from_io(bin_file)
 
 
-def parse_bin_param(bin_file):
-    lengths = [0x04, 0x100, 0x04, 0x04, 0x02, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x3A, 0x04]
-    chunk_size = 0x164
-    read_chunks = []
-
-    read_chunk = bin_file.read(chunk_size)
-    while read_chunk:
-        read_chunks.append(read_chunk)
-        read_chunk = bin_file.read(chunk_size)
-        continue
-
-    parsed_chunk_data = []
-    for chunk in read_chunks:
-        chunk_data = []
-
-        last_index = 0x0
-        length_index = 0
-        while last_index != chunk_size:
-            first_index = last_index
-            last_index = last_index + lengths[length_index]
-            length_index += 1
-
-            read_chunk_data = chunk[first_index:last_index]
-            chunk_data.append(read_chunk_data)
-            continue
-        parsed_chunk_data.append(chunk_data)
-        continue
-    return parsed_chunk_data
+def parse_bin_cad_param(bin_file):  # CadParam.bin
+    return cadparam.Cadparam.from_io(bin_file)
 
 
-def parse_bin_text(bin_file):
-    chunk_length = 0x208
-
-    read_chunks = []
-    read_data = bin_file.read(chunk_length)
-    while read_data:
-        read_chunks.append(read_data)
-        read_data = bin_file.read(chunk_length)
-        continue
-
-    read_chunk_data = []
-    lengths = [0x4, 0x4, 0x200]
-    for read_chunk in read_chunks:
-        chunk_data = []
-        end_offset = 0x0
-        for length_index in range(len(lengths)):
-            length = lengths[length_index]
-            start_offset = end_offset
-            end_offset = end_offset + length
-
-            got_chunk = read_chunk[start_offset:end_offset]
-            chunk_data.append(got_chunk)
-            continue
-        read_chunk_data.append(chunk_data)
-        continue
-    return read_chunk_data
+def parse_bin_magic_text(bin_file):  # MagicText.bin
+    return magictext.Magictext.from_io(bin_file)
 
 
-def parse_bin_list(bin_file):
-    read_data = bin_file.read()
-
-    read_chunks = []
-
-    # Read amount of entries
-    entries = struct.unpack('<L', read_data[0x00:0x04])[0]  # Num of entries in this list
-
-    # Read chunk blocks from amount of entries
-    chunk_length = 0x29C
-    start_index = 0x4
-    end_index = start_index + chunk_length
-    for entry_index in range(entries):
-        chunk_data = read_data[start_index:end_index]
-        read_chunks.append(chunk_data)
-
-        start_index = end_index
-        end_index = start_index + chunk_length
-        continue
-
-    # Read chunk data
-    read_chunk_data = []
-    for read_chunk in read_chunks:
-        lengths = [0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x80, 0x200]
-        chunk = []
-
-        end_offset = 0x0
-        for length_index in range(len(lengths)):
-            length = lengths[length_index]
-            start_offset = end_offset
-            end_offset = end_offset + length
-
-            got_chunk = read_chunk[start_offset:end_offset]
-            chunk.append(got_chunk)
-            continue
-        read_chunk_data.append(chunk)
-        continue
-
-    return read_chunk_data
+def parse_bin_tutorial_list(bin_file):  # TutorialList.bin
+    return tutoriallist.Tutoriallist.from_io(bin_file)
 
 
-def parse_bin_page(bin_file):
-    read_bin_data = bin_file.read()
-
-    data_chunks = []
-
-    data_chunk_length = 0x140
-    start_offset = 0x00
-    end_offset = 0x04
-    data_chunk = []
-    while True:
-        if end_offset >= len(read_bin_data):
-            break
-
-        _id = None
-        read_data = read_bin_data[start_offset:end_offset]
-        if read_data[1] == 0x00 and read_data[2] == 0x00 and read_data[3] == 0x00:
-            if len(read_data) > 4:
-                _id = read_data[0:4]
-            else:
-                _id = read_data
-            start_offset = start_offset + 0x04
-            end_offset = start_offset + data_chunk_length
-            if len(data_chunk) > 0:
-                data_chunks.append(data_chunk)
-                data_chunk = []
-        elif read_data[0] == 0x00 and read_data[1] and read_data[2] and read_data[3]:
-            start_offset += 0x04
-            end_offset += 0x04
-            continue
-
-        if _id is not None and len(_id) == 0x04:
-            data_chunk.append(_id)
-        else:
-            if len(data_chunk) > 0:
-                data_chunk.append(read_data)
-                start_offset = end_offset
-                end_offset += data_chunk_length
-        continue
-
-    data_blocks = []
-    for data_chunk_index in range(len(data_chunks)):
-        data_chunk = data_chunks[data_chunk_index]
-
-        data_block = [data_chunk[0]]
-        for data_block_index in range(len(data_chunk) - 1):
-            data_sub_block = []
-            data_block_index += 1  # Offset by 1 to avoid getting id
-
-            text_data = data_chunk[data_block_index][0x00:0x100]
-            title_data = data_chunk[data_block_index][0x100:0x140]
-
-            data_sub_block.append(text_data)
-            data_sub_block.append(title_data)
-
-            data_block.append(data_sub_block)
-            continue
-        data_blocks.append(data_block)
-        continue
-
-    return data_blocks
+def parse_bin_tuning_list(bin_file):  # IMH_Tuning_List_X_XX.bin
+    return imh_tuning_list_x_xx.ImhTuningListXXx.from_io(bin_file)

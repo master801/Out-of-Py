@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-import mahouka_json
+from src import mahouka_json
 
 
 def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path):
