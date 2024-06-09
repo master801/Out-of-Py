@@ -8,6 +8,7 @@ import multiprocessing
 if not __debug__:  # Dev workspace
     from src import constants, decode, encode
 else:
+    import constants
     import decode
     import encode
 

@@ -29,13 +29,14 @@ def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
         print('Failed to deserialize file?!')
         return
 
+
     import os
-    if os.path.isfile(deserialized_file_path):
-        if __debug__:  # Only show when in user environment
-            print('File {0} already exists! Not decoding...'.format(deserialized_file_path))
-            return
+    if os.path.isfile(output_dir_path + '/' + deserialized_file_path):
+        if not __debug__:
+            os.remove(output_dir_path + '/' + deserialized_file_path)  # Remove file if in dev environment
         else:
-            os.remove(deserialized_file_path)  # Remove file if in dev environment
+            print('File {0} already exists! Not decoding...'.format(deserialized_file_path))  # Only show when in user environment
+            return
 
     write_encoded(deserialized_file_path, output_dir_path, _type, encoded_file_data)
 
@@ -443,6 +444,14 @@ def encode_bin_tuning_list(deserialized):
 
 
 def write_encoded(output_file_path, output_dir, _type, deserialized_file):
+    output_file_dir = output_dir + '/' + output_file_path[:output_file_path.rindex('/')]
+
+    import os
+    if not os.path.isdir(output_file_dir):
+        print('Directory {0} does not exist. Creating...'.format(output_file_dir))
+        os.makedirs(output_file_dir, 0o775, True)
+        pass
+
     output_file_complete_path = output_dir + '/' + output_file_path
     output_file = open(output_file_complete_path, mode='x+b')
     try:

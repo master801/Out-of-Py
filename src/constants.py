@@ -13,7 +13,37 @@ TYPE_BIN_MAGIC_PARAM = 'MagicParam'
 TYPE_BIN_TUTORIAL_LIST = 'TutorialList'
 TYPE_BIN_TUNING_LIST = 'TuningList'
 
-TYPES_BIN = [TYPE_BIN_CHAR_MENU_PARAM, TYPE_BIN_CAD_TEXT_PARAM, TYPE_BIN_CAD_PARAM, TYPE_BIN_MAGIC_TEXT, TYPE_BIN_MAGIC_PARAM, TYPE_BIN_TUTORIAL_LIST, TYPE_BIN_TUNING_LIST]
+# File Name, Type
+TYPES_BIN = [
+    [
+        'CharMenuParam',
+        TYPE_BIN_CHAR_MENU_PARAM
+    ],
+    [
+        'CadTextParam',
+        TYPE_BIN_CAD_TEXT_PARAM
+    ],
+    [
+        'CadParam',
+        TYPE_BIN_CAD_PARAM
+    ],
+    [
+        'MagicText',
+        TYPE_BIN_MAGIC_TEXT
+    ],
+    [
+        'MagicParam',
+        TYPE_BIN_MAGIC_PARAM
+    ],
+    [
+        'TutorialList',
+        TYPE_BIN_TUTORIAL_LIST
+    ],
+    [
+        'IMH_Tuning_List_',
+        TYPE_BIN_TUNING_LIST
+    ]
+]
 
 LENGTH_BIN_CHAR_MENU_PARAM_CHUNK = 0x264
 LENGTH_BIN_CAD_PARAM_CHUNK = 0x164

@@ -12,7 +12,7 @@ if not __debug__:  # Dev workspace
 else:
     import constants
     import mahouka_json
-    from formats import cadparam, cadtextparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
+    from formats import cadparam, cadtextparam, charmenuparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
 
 
 # Do not have output file as a file - No need to create a file if we're not using it yet
@@ -27,6 +27,10 @@ def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
     elif ext == '.bin':
         bin_input_file = open(input_file_path, 'rb')
         parsed_bin_blob = parse_bin(bin_input_file)
+
+        if parsed_bin_blob is None:
+            return
+
         _type = parsed_bin_blob[0]
         parsed_bin = parsed_bin_blob[1]
         serialized_bin_json = mahouka_json.serialize_bin(input_dir_path, input_file_name, _type, parsed_bin)
@@ -137,10 +141,13 @@ def parse_bin(bin_file):
 
     _type = None
     for iterating_type in constants.TYPES_BIN:
-        if bin_file_name.endswith(iterating_type):
-            _type = iterating_type
+        if bin_file_name.startswith(iterating_type[0]):
+            _type = iterating_type[1]
             print('Detected type \"{0}\" for bin file {1}'.format(_type, bin_file.name))
             break
+        elif bin_file_name.startswith('CharBattleParam') or bin_file_name.startswith('MeleeParam'):
+            print('Bin file \"{0}\" is not supported!'.format(bin_file_path))
+            return None
         continue
 
     if _type is None:
