@@ -37,8 +37,7 @@ def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
         _type = parsed_bin_blob[0]
         parsed_bin = parsed_bin_blob[1]
         serialized_bin_json = mahouka_json.serialize_bin(input_dir_path, input_file_name, _type, parsed_bin)
-        if _type == 'TuningList':  # TODO
-            write_json(serialized_bin_json, input_file_name, output_dir_path)  # TODO
+        write_json(serialized_bin_json, input_file_name, output_dir_path)
 
 
 def parse_lua(lua_file):
@@ -179,7 +178,8 @@ def parse_bin_char_battle_param(bin_file):
 
 
 def parse_bin_char_menu_param(bin_file):
-    return cadtextparam.Cadtextparam.from_io(bin_file)
+    # return cadtextparam.Cadtextparam.from_io(bin_file)  # FIXME
+    return None
 
 
 def parse_bin_cad_text_param(bin_file):  # CadTextParam.bin
