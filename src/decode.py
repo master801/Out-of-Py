@@ -8,7 +8,7 @@ from luaparser import astnodes
 if not __debug__:  # Dev workspace
     from src import constants
     from src import mahouka_json
-    from src.formats import cadparam, cadtextparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
+    from src.formats import cadparam, cadtextparam, charmenuparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
 else:
     import constants
     import mahouka_json
@@ -20,11 +20,6 @@ def decode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
     input_file_path = full_input_dir_path + '\\' + input_file_name
     ext = input_file_name[-4:].lower()
     if ext == '.lua':
-        output_file_path = output_dir_path + '\\' + input_file_name + '.json'
-        if os.path.isfile(output_file_path):
-            print('Found already decoded json file... not decoding {0}...'.format(input_file_path))
-            return
-
         lua_input_file = open(input_file_path, 'rt', encoding='UTF-8')  # Open file as text for reading
         block = parse_lua(lua_input_file)
         serialized_lua_json = mahouka_json.serialize_lua(input_dir_path, input_file_name, block)
@@ -117,8 +112,11 @@ def write_json(serialized_json, input_file_name, output_dir_path):
     output_file_path = output_dir_path + '\\' + input_file_name + '.json'
 
     if os.path.isfile(output_file_path):
-        print('Json file {0} already exists\n'.format(output_file_path))
-        return
+        if not __debug__:  # Only in dev workspace
+            os.remove(output_file_path)
+        else:
+            print('Json file {0} already exists\n'.format(output_file_path))
+            return
 
     output_file = open(output_file_path, mode='xt', newline='\n')
     try:
@@ -138,7 +136,6 @@ def parse_bin(bin_file):
     bin_file_name = bin_file_path[:-4]
 
     _type = None
-    parsed_bin = None
     for iterating_type in constants.TYPES_BIN:
         if bin_file_name.endswith(iterating_type):
             _type = iterating_type
@@ -164,15 +161,15 @@ def parse_bin(bin_file):
         parsed_bin = parse_bin_tutorial_list(bin_file)
     elif _type == constants.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
         parsed_bin = parse_bin_tuning_list(bin_file)
-    elif _type is None:
+    else:
         print('Unknown bin type!')
+        print(_type)
         return None
     return [_type, parsed_bin]
 
 
-def parse_bin_char_menu_param(bin_file):
-    # return cadtextparam.Cadtextparam.from_io(bin_file)  # FIXME
-    return None
+def parse_bin_char_menu_param(bin_file):  # CharMenuParam.bin
+    return charmenuparam.Charmenuparam.from_io(bin_file)
 
 
 def parse_bin_cad_text_param(bin_file):  # CadTextParam.bin

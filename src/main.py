@@ -3,22 +3,17 @@
 import argparse
 import glob
 import os
+import multiprocessing
 
 if not __debug__:  # Dev workspace
-    from src import decode
-    from src import encode
+    from src import constants, decode, encode
 else:
     import decode
     import encode
 
 
-# Constants
-MODE_DECODE = 'DECODE'
-MODE_ENCODE = 'ENCODE'
-
-
 def find_files(mode, dir):
-    if mode == MODE_DECODE:
+    if mode == constants.MODE_DECODE:
         lua_files = []
         bin_files = []
         for root, subdirs, files in os.walk(dir):
@@ -29,7 +24,7 @@ def find_files(mode, dir):
             for _bin in glob.iglob(root + '\\' + '*.bin'):
                 bin_files.append(_bin)
         return [lua_files, bin_files]
-    elif mode == MODE_ENCODE:
+    elif mode == constants.MODE_ENCODE:
         json_files = []
         for root, subdirs, files in os.walk(dir):
             if len(files) < 1:  # Skip dirs with no files
@@ -44,40 +39,82 @@ def __main__():
     parser.add_argument('--input', dest='input_dir', required=True, nargs=1, type=str, help='Input directory')
     parser.add_argument('--output', dest='output_dir', required=True, nargs=1, type=str, help='Output directory')
     parser.add_argument('--mode', dest='mode', required=True, nargs=1, choices=['DECODE', 'ENCODE'], type=str, help='Mode')
+    parser.add_argument('--threads', dest='threads', required=False, nargs=1, type=int, default=2, help='Max threads to use. Default is 2')
     args = parser.parse_args()
 
     mode = args.mode[0].upper()
     _input = args.input_dir[0]
     _output = args.output_dir[0]
+    threads = args.threads
 
     files = find_files(mode, _input)  # Find files in given input dir
 
-    if mode == MODE_DECODE:
+    jobs = []
+
+    if mode == constants.MODE_DECODE:
         lua_files = files[0]
         bin_files = files[1]
 
         for lua_file_path in lua_files:
             something = something_to_do_with_files(_input, _output, lua_file_path)
 
+            if os.path.isfile(_output + '\\' + something[2] + '.json'):
+                if __debug__:  # Skip if not in dev workspace
+                    print('Found already decoded json file... not decoding {0}...'.format(something[1] + '\\' + something[2]))
+                    continue
+
             # Decode lua
-            decode.decode_file(something[0], something[1], something[2], _output)  # TODO Support multi-threading
+            process = multiprocessing.Process(target=decode.decode_file, args=(something[0], something[1], something[2], _output))
+            jobs.append(process)
             continue
 
         for bin_file_path in bin_files:
             something = something_to_do_with_files(_input, _output, bin_file_path)
 
+            if os.path.isfile(_output + '\\' + something[2] + '.json'):
+                if __debug__:  # Skip if not in dev workspace
+                    print('Found already decoded json file... not decoding {0}...'.format(something[1] + '\\' + something[2]))
+                    continue
+
             # Decode bin
-            decode.decode_file(something[0], something[1], something[2], _output)
+            process = multiprocessing.Process(target=decode.decode_file, args=(something[0], something[1], something[2], _output))
+            jobs.append(process)
             continue
-    elif mode == MODE_ENCODE:
+
+        pass
+
+    elif mode == constants.MODE_ENCODE:
         json_files = files
 
         for json_file_path in json_files:
             something = something_to_do_with_files(_input, _output, json_file_path)
 
             # Encode file
-            encode.encode_file(something[0], something[1], something[2], _output)
+            process = multiprocessing.Process(target=encode.encode_file, args=(something[0], something[1], something[2], _output))
+            jobs.append(process)
             continue
+
+        pass
+
+    processed_jobs = []
+    for job_index in range(len(jobs)):
+        job = jobs[job_index]
+
+        if len(processed_jobs) == threads:
+            for processed_job_index in range(len(processed_jobs)):
+                processed_job = processed_jobs[processed_job_index]
+                processed_job.join()
+                continue
+
+            processed_jobs.clear()
+            pass
+
+        job.start()
+
+        processed_jobs.append(job)
+        continue
+
+    jobs.clear()
 
 
 # Returns the input file's path, name
