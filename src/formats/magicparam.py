@@ -1,0 +1,1 @@
+../../../../../Documents/Kaitai/Formats/out/magicparam.py

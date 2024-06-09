@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import struct
 
-from src import mahouka_json, constants
-from src.builders import builders
+if not __debug__:  # Dev workspace
+    from src import mahouka_json, constants
+    from src.builders import builders
+else:
+    import mahouka_json, constants
+    from builders import builders
 
 
 def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path):
@@ -32,8 +36,6 @@ def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir
 def encode_file_data(_type, deserialized):
     if _type == constants.TYPE_LUA:
         return encode_lua(deserialized)  # TODO
-    elif _type == constants.TYPE_BIN_CHAR_BATTLE_PARAM:  # Not yet supported TODO
-        return encode_bin_char_battle_param(deserialized)  # TODO
     elif _type == constants.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin TODO
         return encode_bin_menu_param(deserialized)
     elif _type == constants.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin TODO
@@ -42,6 +44,8 @@ def encode_file_data(_type, deserialized):
         return encode_bin_cad_param(deserialized)
     elif _type == constants.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
         return encode_bin_magic_text(deserialized)
+    elif _type == constants.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
+        return encode_bin_magic_param(deserialized)
     elif _type == constants.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
         return encode_bin_tutorial_list(deserialized)
     elif _type == constants.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
@@ -176,6 +180,14 @@ def encode_bin_magic_text(deserialized):
     return data_block
 
 
+def encode_bin_magic_param(deserialized):
+    data_block = bytearray()
+
+    # TODO
+
+    return data_block
+
+
 def encode_bin_tutorial_list(deserialized):
     length = deserialized['length']
     entries = deserialized['entries']
@@ -227,13 +239,13 @@ def encode_bin_tuning_list(deserialized):
     data_block = bytearray()
 
     for map_index in range(len(deserialized)):
-        map = deserialized[map_index]
+        _map = deserialized[map_index]
         sub_data_block = bytearray()
 
-        id = map['id']
-        entries = map['entries']
+        _id = _map['id']
+        entries = _map['entries']
 
-        sub_data_block[0x00:0x04] = struct.pack('<L', id)
+        sub_data_block[0x00:0x04] = struct.pack('<L', _id)
 
         for entry_index in range(len(entries)):
             entry = entries[entry_index]
@@ -268,10 +280,10 @@ def encode_bin_tuning_list(deserialized):
 def write_encoded(output_file_path, output_dir, _type, deserialized_file):
     output_file_complete_path = output_dir + '/' + output_file_path
 
-    # TODO REMOVE - DEBUG
-    import os
-    if os.path.exists(output_file_complete_path):
-        os.remove(output_file_complete_path)
+    if not __debug__:  # Only in dev workspace
+        import os
+        if os.path.exists(output_file_complete_path):
+            os.remove(output_file_complete_path)
 
     output_file = open(output_file_complete_path, mode='x+b')
     try:

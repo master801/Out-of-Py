@@ -3,8 +3,13 @@
 import argparse
 import glob
 import os
-from src import decode
-from src import encode
+
+if not __debug__:  # Dev workspace
+    from src import decode
+    from src import encode
+else:
+    import decode
+    import encode
 
 
 # Constants

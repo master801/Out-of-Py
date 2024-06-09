@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 
 import os
-import struct
 
 from luaparser import ast
 from luaparser import astnodes
 
-from src import constants
-from src import mahouka_json
-
-from src.formats import cadparam
-from src.formats import cadtextparam
-from src.formats import charmenuparam
-from src.formats import imh_tuning_list_x_xx
-from src.formats import magictext
-from src.formats import tutoriallist
+if not __debug__:  # Dev workspace
+    from src import constants
+    from src import mahouka_json
+    from src.formats import cadparam, cadtextparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
+else:
+    import constants
+    import mahouka_json
+    from formats import cadparam, cadtextparam, imh_tuning_list_x_xx, magictext, magicparam, tutoriallist
 
 
 # Do not have output file as a file - No need to create a file if we're not using it yet
@@ -119,7 +117,7 @@ def write_json(serialized_json, input_file_name, output_dir_path):
     output_file_path = output_dir_path + '\\' + input_file_name + '.json'
 
     if os.path.isfile(output_file_path):
-        print('Json file {0} already exists'.format(output_file_path))
+        print('Json file {0} already exists\n'.format(output_file_path))
         return
 
     output_file = open(output_file_path, mode='xt', newline='\n')
@@ -149,12 +147,10 @@ def parse_bin(bin_file):
         continue
 
     if _type is None:
-        print('Unknown type for bin file {0} - Defaulting to \"{1}\"'.format(bin_file.name, _type))
-        _type = constants.TYPES_BIN[len(constants.TYPES_BIN) - 1]
+        print('Unknown type for bin file {0} - Defaulting to \"{1}\"'.format(bin_file.name, constants.TYPE_BIN_TUNING_LIST))
+        _type = constants.TYPE_BIN_TUNING_LIST
 
-    if _type == constants.TYPE_BIN_CHAR_BATTLE_PARAM:  # CharBattleParam.bin
-        parsed_bin = parse_bin_char_battle_param(bin_file)  # TODO
-    elif _type == constants.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
+    if _type == constants.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
         parsed_bin = parse_bin_char_menu_param(bin_file)
     elif _type == constants.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
         parsed_bin = parse_bin_cad_text_param(bin_file)
@@ -162,6 +158,8 @@ def parse_bin(bin_file):
         parsed_bin = parse_bin_cad_param(bin_file)
     elif _type == constants.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
         parsed_bin = parse_bin_magic_text(bin_file)
+    elif _type == constants.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
+        parsed_bin = parse_bin_magic_param(bin_file)
     elif _type == constants.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
         parsed_bin = parse_bin_tutorial_list(bin_file)
     elif _type == constants.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
@@ -170,10 +168,6 @@ def parse_bin(bin_file):
         print('Unknown bin type!')
         return None
     return [_type, parsed_bin]
-
-
-def parse_bin_char_battle_param(bin_file):
-    return [bytes]  # TODO
 
 
 def parse_bin_char_menu_param(bin_file):
@@ -191,6 +185,10 @@ def parse_bin_cad_param(bin_file):  # CadParam.bin
 
 def parse_bin_magic_text(bin_file):  # MagicText.bin
     return magictext.Magictext.from_io(bin_file)
+
+
+def parse_bin_magic_param(bin_file):  # MagicParam.bin
+    return magicparam.Magicparam.from_io(bin_file)
 
 
 def parse_bin_tutorial_list(bin_file):  # TutorialList.bin

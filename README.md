@@ -1,6 +1,12 @@
 # Out-of-Py
 
 
+## Info
+
+Please give credit where it's due if using my tool.</br>
+I've put too much work and effort into this only to be discredited. I don't want to end up keeping these tools for private use only and would rather share them publicly.
+
+
 ## Before using:
 
 Install [Python](https://www.python.org/downloads/) (project is built with [3.6.4](https://www.python.org/downloads/release/python-364/))</br>
@@ -27,11 +33,5 @@ python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR
 - [x] Param/Atk/CadParam.bin
 - [x] Param/Atk/CadTextParam.bin
 - [ ] Param/Atk/CharMenuParam.bin
-- [ ] Param/Atk/MagicParam.bin
+- [x] Param/Atk/MagicParam.bin
 - [x] Param/Atk/MagicText.bin
-
-
-## Info
-
-Please give credit where it's due if using my tool.</br>
-I've put too much work and effort into this only to be discredited. I don't want to end up keeping these tools for private use only, and would rather share them publicly.

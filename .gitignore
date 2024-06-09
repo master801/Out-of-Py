@@ -10,7 +10,6 @@
 
 ##Misc
 /libs
-/src/test.py
 
 #Gradle
 /.gradle
