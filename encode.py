@@ -1,68 +1,65 @@
 #!/usr/bin/env python3
+# Created by Master on 4/3/2019
 
 import struct
 import os
+import pathlib
 
-if not __debug__:  # Dev workspace
-    from src import mahouka_json, constants
-    from src.builders import builders
-else:
-    import mahouka_json, constants
-    from builders import builders
+import mahouka_json
+import constants
+
+from builders import builders
 
 
-def encode_file(input_dir_path, full_input_dir_path, input_file_name, output_dir_path, overwrite):
-    input_file_path = full_input_dir_path + constants.FILE_PATH_SEPARATOR + input_file_name
+def encode_file(path_json: pathlib.Path, output_dir_path: str, overwrite: bool):
+    print(f'Found JSON file \"{path_json}\"')
 
-    print('Found json file \"{0}\"'.format(input_file_path))
-
-    input_file = open(input_file_path, mode='rt')
-    input_file_data = input_file.read()
-    deserialized_file_container = mahouka_json.deserialize_file_container(input_file_data)
+    with open(path_json, mode='rt', encoding='utf-8') as io_json:
+        deserialized_file_container = mahouka_json.deserialize_file_container(io_json)
+        pass
+    del io_json
 
     _type = deserialized_file_container[0]
-    deserialized_file_path = deserialized_file_container[1]
-    deserialized_block = deserialized_file_container[2]
+    deserialized_block = deserialized_file_container[1]
 
-    if os.path.isfile(output_dir_path + constants.FILE_PATH_SEPARATOR + deserialized_file_path):
-        # Remove file if specified
-        if overwrite:
-            os.remove(output_dir_path + constants.FILE_PATH_SEPARATOR + deserialized_file_path)
-            pass
-        else:
-            print('File {0} already exists! Not decoding...'.format(deserialized_file_path))
-            return
+    fp_output: pathlib.Path = pathlib.Path(os.path.join(output_dir_path, path_json.stem))
+
+    if (fp_output.exists() and fp_output.is_file()) and not overwrite:
+        print(f'File \"{fp_output}\" already exists! Not encoding...{os.linesep}')
+        return
 
     encoded_file_data = encode_file_data(_type, deserialized_block)
     if encoded_file_data is None:
         print('Failed to deserialize file?!')
+        breakpoint()
         return
 
-    write_encoded(deserialized_file_path, output_dir_path, _type, encoded_file_data)
+    write_encoded(fp_output, encoded_file_data, overwrite)
 
-    print('Wrote deserialized file \"{0}\" to \"{1}/{2}\"\n'.format(input_file_path, output_dir_path, deserialized_file_path))
+    print(f'Wrote deserialized file \"{path_json}\" to \"{os.path.join(output_dir_path, path_json.name)}\"{os.linesep}')
+    return
 
 
-def encode_file_data(_type, deserialized):
-    if _type == constants.TYPE_LUA:
+def encode_file_data(_type, deserialized) -> bytearray:
+    if _type == constants.Type.TYPE_LUA.value:
         return encode_lua(deserialized)
-    elif _type == constants.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
+    elif _type == constants.Type.TYPE_BIN_CHAR_MENU_PARAM.value:  # CharMenuParam.bin
         return encode_bin_char_menu_param(deserialized)
-    elif _type == constants.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
+    elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM.value:  # CadTextParam.bin
         return encode_bin_cad_text_param(deserialized)
-    elif _type == constants.TYPE_BIN_CAD_PARAM:  # CadParam.bin
+    elif _type == constants.Type.TYPE_BIN_CAD_PARAM.value:  # CadParam.bin
         return encode_bin_cad_param(deserialized)
-    elif _type == constants.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
+    elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT.value:  # MagicText.bin
         return encode_bin_magic_text(deserialized)
-    elif _type == constants.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
+    elif _type == constants.Type.TYPE_BIN_MAGIC_PARAM.value:  # MagicParam.bin
         return encode_bin_magic_param(deserialized)
-    elif _type == constants.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
+    elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST.value:  # TutorialList.bin
         return encode_bin_tutorial_list(deserialized)
-    elif _type == constants.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
+    elif _type == constants.Type.TYPE_BIN_TUNING_LIST.value:  # IMH_Tuning_List_X_XX.bin
         return encode_bin_tuning_list(deserialized)
 
 
-def encode_lua(deserialized):
+def encode_lua(deserialized) -> bytearray:
     blocks = []
     for deserialized_block_key in deserialized:
         deserialized_block = deserialized[deserialized_block_key]
@@ -84,7 +81,6 @@ def encode_lua(deserialized):
         continue
 
     data = bytearray()
-
     for block in blocks:
         encoded_bytes = block.encode('utf-8')
 
@@ -93,7 +89,6 @@ def encode_lua(deserialized):
 
         data[start_offset:end_offset] = encoded_bytes
         continue
-
     return data
 
 
@@ -126,7 +121,7 @@ def encode_utf8_text_to_hex(utf8_text):
     return replaced
 
 
-def encode_bin_char_menu_param(deserialized):
+def encode_bin_char_menu_param(deserialized) -> bytearray:
     encoded_data = bytearray(constants.LENGTH_BIN_CHAR_MENU_PARAM_CHUNK * len(deserialized))
 
     for entry_index in range(len(deserialized)):
@@ -187,7 +182,7 @@ def encode_bin_char_menu_param(deserialized):
     return encoded_data
 
 
-def encode_bin_cad_text_param(deserialized):
+def encode_bin_cad_text_param(deserialized) -> bytearray:
     encoded_data = bytearray(constants.LENGTH_BIN_CAD_TEXT_PARAM * len(deserialized))
 
     for entry_index in range(len(deserialized)):
@@ -208,7 +203,7 @@ def encode_bin_cad_text_param(deserialized):
     return encoded_data
 
 
-def encode_bin_cad_param(deserialized):
+def encode_bin_cad_param(deserialized) -> bytearray:
     params = deserialized['params']
 
     data_block = bytearray(constants.LENGTH_BIN_CAD_PARAM_CHUNK * len(params))
@@ -258,7 +253,7 @@ def encode_bin_cad_param(deserialized):
     return data_block
 
 
-def encode_bin_magic_text(deserialized):
+def encode_bin_magic_text(deserialized) -> bytearray:
     data_block = bytearray()
 
     for entry_index in range(len(deserialized)):
@@ -282,7 +277,7 @@ def encode_bin_magic_text(deserialized):
     return data_block
 
 
-def encode_bin_magic_param(deserialized):
+def encode_bin_magic_param(deserialized) -> bytearray:
     encoded_data = bytearray(constants.LENGTH_BIN_MAGIC_PARAM_CHUNK * len(deserialized))
 
     for entry_index in range(len(deserialized)):
@@ -387,7 +382,7 @@ def encode_bin_magic_param(deserialized):
     return encoded_data
 
 
-def encode_bin_tutorial_list(deserialized):
+def encode_bin_tutorial_list(deserialized) -> bytearray:
     length = deserialized['length']
     entries = deserialized['entries']
 
@@ -434,7 +429,7 @@ def encode_bin_tutorial_list(deserialized):
     return data_block
 
 
-def encode_bin_tuning_list(deserialized):
+def encode_bin_tuning_list(deserialized) -> bytearray:
     data_block = bytearray()
 
     for map_index in range(len(deserialized)):
@@ -473,20 +468,27 @@ def encode_bin_tuning_list(deserialized):
     return data_block
 
 
-def write_encoded(output_file_path, output_dir, _type, deserialized_file):
-    output_file_dir = output_dir + '/' + output_file_path[:output_file_path.rindex('/')]
-
-    if not os.path.isdir(output_file_dir):
-        print('Directory {0} does not exist. Creating...'.format(output_file_dir))
-        os.makedirs(output_file_dir, 0o775, True)
+def write_encoded(path_out: pathlib.Path, deserialized_file, overwrite: bool):
+    if path_out.exists() and path_out.is_file():
+        if overwrite:
+            mode = 'w+'
+            pass
+        else:
+            print(f'File \"{path_out}\" already exists! Cannot overwrite!')
+            return
+        pass
+    else:
+        mode = 'x'
         pass
 
-    output_file_complete_path = output_dir + '/' + output_file_path
-    output_file = open(output_file_complete_path, mode='x+b')
+    if not path_out.parent.exists():
+        print(f'Directory \"{path_out.parent}\" does not exist. Creating...')
+        path_out.parent.mkdir(parents=True)
+        pass
 
-    try:
-        output_file.write(deserialized_file)
+    with open(path_out, mode=f'{mode}b') as io_out:
+        io_out.write(deserialized_file)
         pass
-    finally:
-        output_file.close()
-        pass
+    del mode
+    del io_out
+    return

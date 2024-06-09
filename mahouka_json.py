@@ -1,55 +1,57 @@
 #!/usr/bin/env python3
+# Created by Master on 4/2/2019
 
 import json
 
-if not __debug__:  # Dev workspace
-    from src import constants
-else:
-    import constants
+import constants
 
 
-def deserialize_file_container(file):
-    deserialized_json = json.loads(file)
-
-    _type = deserialized_json['type']
-    file_path = deserialized_json['file_path']
-    block = deserialized_json['block']
-
-    return [_type, file_path, block]
+def deserialize_file_container(file) -> list[dict]:
+    deserialized_json = json.load(file)
+    return [
+        deserialized_json['type'],
+        deserialized_json['block']
+    ]
 
 
-def serialize_file(_type, input_dir_path, file_name, block):
+def _serialize_file(_type: constants.Type, block: dict) -> str:
     wrapped_block = {}
-    wrapped_block.update({'type': _type})
-    wrapped_block.update({'file_path': input_dir_path + '/' + file_name})
+    wrapped_block.update({'type': _type.value})
     wrapped_block.update({'block': block})
     return json.dumps(wrapped_block, indent=2, ensure_ascii=False)
 
 
-def serialize_lua(input_dir_path, file_name, block):
-    return serialize_file(constants.TYPE_LUA, input_dir_path, file_name, block)
+def serialize_lua(block) -> str:
+    return _serialize_file(
+        constants.Type.TYPE_LUA,
+        block
+    )
 
 
-def serialize_bin(input_dir_path, file_name, _type, _bin):
-    blocks = serialize_bin_type(_type, _bin)
-    return serialize_file(_type, input_dir_path, file_name, blocks)
+def serialize_bin(_type, _bin) -> str:
+    return _serialize_file(
+        _type,
+        serialize_bin_type(_type, _bin)
+    )
 
 
 def serialize_bin_type(_type, _bin):
-    if _type == constants.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
+    if _type == constants.Type.TYPE_BIN_CHAR_MENU_PARAM:  # CharMenuParam.bin
         return serialize_bin_char_menu_param(_bin)
-    elif _type == constants.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
+    elif _type == constants.Type.TYPE_BIN_CAD_TEXT_PARAM:  # CadTextParam.bin
         return serialize_bin_cad_text_param(_bin)
-    elif _type == constants.TYPE_BIN_CAD_PARAM:  # CadParam.bin
+    elif _type == constants.Type.TYPE_BIN_CAD_PARAM:  # CadParam.bin
         return serialize_bin_cad_param(_bin)
-    elif _type == constants.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
+    elif _type == constants.Type.TYPE_BIN_MAGIC_TEXT:  # MagicText.bin
         return serialize_bin_magic_text(_bin)
-    elif _type == constants.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
+    elif _type == constants.Type.TYPE_BIN_MAGIC_PARAM:  # MagicParam.bin
         return serialize_bin_magic_param(_bin)
-    elif _type == constants.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
+    elif _type == constants.Type.TYPE_BIN_TUTORIAL_LIST:  # TutorialList.bin
         return serialize_bin_tutorial_list(_bin)
-    elif _type == constants.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
+    elif _type == constants.Type.TYPE_BIN_TUNING_LIST:  # IMH_Tuning_List_X_XX.bin
         return serialize_bin_tuning_list(_bin)
+    else:
+        raise Exception(f'Type \"{_type}\" not specified or is invalid!')
 
 
 def serialize_bin_char_menu_param(_bin):
@@ -197,31 +199,31 @@ def serialize_bin_magic_param(_bin):
         unknown_77 = entry.unknown_77
 
         if unknown_3 != b'\x00\x00\x00\x00\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
         elif unknown_25 != b'\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
         elif unknown_31 != b'\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
         elif unknown_34 != b'\x00\x00\x00\x00\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
         elif unknown_68 != b'\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
         elif unknown_72 != b'\x00\x00\x00\x00\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
         elif unknown_77 != b'\x00\x00\x00\x00\x00\x00\x00\x00':
-            print('A fatal exception occurred!')
+            print('Unexpected data!')
             breakpoint()
             return
 

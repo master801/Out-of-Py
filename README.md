@@ -3,14 +3,26 @@
 
 ## Info
 
-Please give credit where it's due if using my tool.
+This tool is for decoding and encoding the text `.lua` and `.bin` files in Mahouka Koukou no Rettousei Out of Order for PS Vita.
+
+Please give credit if using this tool.
 
 
 ## Before using:
 
-Install [Python](https://www.python.org/downloads/) (project is built with [3.7.3](https://www.python.org/downloads/release/python-373/))</br>
-Install [kaitaistruct](https://pypi.org/project/kaitaistruct/) running the command: `pip install kaitaistruct`</br>
-Install [py-lua-parser](https://github.com/boolangery/py-lua-parser) by running the command: `pip install luaparser`</br>
+Install [Python](https://www.python.org/downloads/) ([3.12.0](https://www.python.org/downloads/release/python-3120/))</br>
+
+Install dependencies:
+- [kaitaistruct](https://pypi.org/project/kaitaistruct/)</br>
+- [py-lua-parser](https://github.com/boolangery/py-lua-parser)</br>
+
+OR
+
+Install dependencies using `pip`
+```shell
+py -3.12 -m pip install -r requirements.txt
+```
+
 
 
 ## Usage
@@ -19,18 +31,14 @@ Install [py-lua-parser](https://github.com/boolangery/py-lua-parser) by running 
 - `--mode` [`DECODE`, `ENCODE`] - Mode to use
 - `--input` [`INPUT_DIRECTORY`] - Input directory
 - `--output` [`OUTPUT_DIRECTORY`] - Output directory
-- `--threads` [`THREADS`] - Amount of threads to use for processing files. Default is 1 - Error log will be more helpful than using more threads
-- `--overwrite` [`True`, `False`] - If files in output directory should be overwritten if it already exists. Default is False.
+- `--threads` [`THREADS`] - Amount of threads to use for processing files. Default is 1
+- `--overwrite` - If files in output directory should be overwritten if it already exists.
 
 #### Example usage:
 ```
-python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR
-python main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR --threads=4 --overwrite=True
+py -3.12 main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR
+py -3.12 main.py --mode=DECODE --input=INPUT_DIR --output=OUTPUT_DIR --threads=4 --overwrite
 ```
-
-#### Tested on:
-- Windows (Windows 10)
-- Linux (Fedora 29)
 
 ### Currently Supports:
 
