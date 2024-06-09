@@ -5,4 +5,5 @@ plugins {
 python {
     minPythonVersion = '3.6'
     pip 'luaparser:1.2.1'
+    pip 'enum34'
 }

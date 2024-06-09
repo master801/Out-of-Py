@@ -6,7 +6,6 @@ import struct
 
 
 def deserialize_file(file):
-
     deserialized_json = json.loads(file)
 
     _type = deserialized_json['type']
@@ -170,28 +169,90 @@ def serialize_bin_param(_bin):
 
 
 def deserialize_bin_param(blocks):
+    bin_param_data = bytearray(0x164 * len(blocks))
 
-    for block in blocks:
-        id = block[0]
-        text = block[1]
-        index = block[2]
-        unknown_01 = block[3]
-        unknown_02 = block[4]
-        # unknown_03 = block[5]
-        unknown_04 = block[5]
-        unknown_05 = block[6]
-        unknown_06 = block[7]
-        unknown_07 = block[8]
-        unknown_08 = block[9]
-        # unknown_09 = block[11]
-        unknown_10 = block[10]
+    block_data_list = []
+    for block_index in range(len(blocks)):
+        block = blocks[block_index]
 
-        # TODO
+        id_dict = block[0]
+        text_dict = block[1]
+        index_dict = block[2]
+        unknown_01_dict = block[3]
+        unknown_03_dict = block[4]
+        unknown_04_dict = block[5]
+        unknown_05_dict = block[6]
+        unknown_06_dict = block[7]
+        unknown_07_dict = block[8]
+        unknown_08_dict = block[9]
+        unknown_10_dict = block[10]
 
-        print()
+        block_data = bytearray(0x164)
+
+        print(len(block_data))
+
+        _id = id_dict['id']
+        struct.pack_into('<L', block_data, 0x00, _id)  # id
+
+        print(len(block_data))
+
+        text = text_dict['text']
+        text_data = bytes(text, encoding='utf-8')
+        block_data[0x04:0x104] = text_data  # text
+
+        print(len(block_data))
+
+        index = index_dict['index']
+        struct.pack_into('<L', block_data, 0x104, index)  # index
+
+        unknown_01 = unknown_01_dict['unknown_1']
+        struct.pack_into('<L', block_data, 0x108, unknown_01)  # unknown 1
+
+        # Not used - Empty zeros
+        # unknown_02 = unknown_02_dict['unknown_2']
+        # struct.pack_into('<L', block_data, ????, unknown_02)  # unknown 2
+
+        unknown_03 = unknown_03_dict['unknown_3']
+        struct.pack_into('<L', block_data, 0x10E, unknown_03)  # unknown 2
+
+        unknown_04 = unknown_04_dict['unknown_4']
+        struct.pack_into('<L', block_data, 0x112, unknown_04)  # unknown 4
+
+        unknown_05 = unknown_05_dict['unknown_5']
+        struct.pack_into('<L', block_data, 0x116, unknown_05)  # unknown 5
+
+        unknown_06 = unknown_06_dict['unknown_6']
+        struct.pack_into('<L', block_data, 0x11A, unknown_06)  # unknown 6
+
+        unknown_07 = unknown_07_dict['unknown_7']
+        struct.pack_into('<L', block_data, 0x11E, unknown_07)  # unknown 7
+
+        unknown_08 = unknown_08_dict['unknown_8']
+        struct.pack_into('<L', block_data, 0x122, unknown_08)  # unknown 5
+
+        # unknown_09 = unknown_09_dict['unknown_9']
+        # Not used - Empty zeros (this is a bytearray)
+
+        unknown_10 = unknown_10_dict['unknown_10']
+        struct.pack_into('<L', block_data, 0x160, unknown_10)  # unknown 2
+
+        block_data_list.append(block_data)
         continue
 
-    return None  # TODO
+    previous_index = 0x00
+    for block_data_index in range(len(block_data_list)):
+        block_data = block_data_list[block_data_index]
+
+        start_index = previous_index
+        end_index = previous_index + (block_data_index + 1) * 164
+
+        bin_param_data[start_index:end_index] = block_data
+
+        previous_index = end_index
+        continue
+
+    print()
+    return bin_param_data
 
 
 def serialize_bin_text(_bin):
